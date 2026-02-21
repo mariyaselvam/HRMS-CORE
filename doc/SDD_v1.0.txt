@@ -1,0 +1,880 @@
+﻿
+PeopleOps HRMS
+System Design Document
+SDD - v1.0
+
+Cloud-Based  |  Multi-Tenant  |  HRMS SaaS Platform
+
+
+
+Node.jsTypeScriptPostgreSQLAngularReact NativeBullMQ/Redis
+February 2026Version 1.0Status: Draft
+
+
+Table of Contents
+1.Database Design4  1.1Entity Relationship Overview4  1.2Multi-Tenancy Strategy4  1.3Full Improved Schema5  1.4Indexing & Constraints Strategy82.API Design & Contracts9  2.1Global Conventions9  2.2Request & Response Envelope9  2.3Endpoint Registry by Module10  2.4Versioning & Deprecation Strategy113.Auth & Security Design12  3.1Authentication Strategy (Passport.js + JWT)12  3.2Token Lifecycle Flow12  3.3Role-Based Access Control (RBAC)13  3.4Super Admin Isolation13  3.5Security Hardening Checklist144.Module-by-Module Design15  4.1Company & Organization15  4.2Employee Management15  4.3Attendance & Time Tracking16  4.4Leave Management17  4.5Payroll Processing18  4.6Employee Self-Service (ESS)195.Approval Workflow Engine20  5.1Design Overview20  5.2Execution Flow20  5.3Escalation & Timeout Rules216.Notification System22  6.1Channel Architecture22  6.2Event Registry22  6.3Async Delivery via Job Queue237.File Storage & PDF Generation24  7.1Storage Strategy24  7.2Payslip PDF Generation24  7.3Employee Document Uploads258.Job Queue & Background Workers26  8.1Queue Architecture (BullMQ + Redis)26  8.2Worker Registry26  8.3Retry, Dead-Letter & Monitoring279.Error Handling & Logging28  9.1Error Classification28  9.2Global Error Handler28  9.3Logging Stack (Winston + Sentry)2910.Deployment & Infrastructure30  10.1Infrastructure Overview30  10.2Service Topology30  10.3Environment Configuration31  10.4CI/CD Pipeline3211.Scalability & Performance33  11.1Current Architecture Limits33  11.2Scaling Strategies33  11.3Caching Strategy34  11.4Database Performance3412.CI/CD Pipeline Design35  12.1Pipeline Stages35  12.2Branch & Release Strategy35  12.3Rollback Strategy36
+
+
+1.  Database Design
+PostgreSQL · TypeORM · Row-Level Multi-Tenancy
+1.1 Entity Relationship Overview
+The database is organized into seven functional domains. Every tenant-scoped table carries a company_id foreign key. The diagram below shows domain-level relationships:
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                    IDENTITY & AUTH DOMAIN                           │
+│  companies ──< users >── roles ──< role_permissions >── permissions │
+└──────────────────────────┬──────────────────────────────────────────┘
+                           │ company_id (all tenant tables)
+          ┌────────────────┼──────────────────────┐
+          │                │                      │
+┌─────────▼──────┐ ┌───────▼────────┐  ┌─────────▼──────────┐
+│  ORG DOMAIN    │ │ EMPLOYEE DOMAIN│  │ ATTENDANCE DOMAIN  │
+│  departments   │ │  employees     │  │  attendance_logs   │
+│  teams         │ │  salary_struct │  │  attendance_reqs   │
+│  work_locations│ │  emp_documents │  │  overtime_records  │
+│  shifts        │ │  emp_shifts    │  │                    │
+└────────────────┘ └───────┬────────┘  └────────────────────┘
+                           │
+          ┌────────────────┼──────────────────────┐
+          │                │                      │
+┌─────────▼──────┐ ┌───────▼────────┐  ┌─────────▼──────────┐
+│  LEAVE DOMAIN  │ │ PAYROLL DOMAIN │  │  PLATFORM DOMAIN   │
+│  leave_types   │ │ payroll_cycles │  │  plans             │
+│  leave_balances│ │ payroll_records│  │  subscriptions     │
+│  leave_requests│ │ payslips       │  │  invoices          │
+│  holidays      │ │                │  │  payments          │
+└────────────────┘ └────────────────┘  │  audit_logs        │
+                                        └────────────────────┘
+                    ┌───────────────────────────────┐
+                    │   WORKFLOW DOMAIN             │
+                    │   workflows · approval_steps  │
+                    │   approval_logs               │
+                    └───────────────────────────────┘
+1.2 Multi-Tenancy Strategy
+PeopleOps uses a shared-schema, row-level multi-tenancy model. All company data lives in the same PostgreSQL database. Isolation is enforced at three levels:
+
+LevelMechanismWhere EnforcedDatabasecompany_id NOT NULL FK on every tenant tablePostgreSQL constraintsORMBaseRepository automatically appends WHERE company_id = :cid to all queriesTypeORM custom repository base classAPIcompany_id extracted from JWT payload - never accepted from request params or bodyJWT middleware + TypeScript typesSuper AdminSuper Admin tokens carry no company_id and are validated by a separate strategySuperAdminGuard middleware
+1.3 Full Improved Schema
+All 18 schema issues have been resolved. New or changed columns are noted inline.
+
+-- ══════════════════════════════════════
+-- DOMAIN 1: IDENTITY & AUTH
+-- ══════════════════════════════════════
+
+Table companies {
+  id             uuid [pk]
+  name           varchar        [not null]
+  industry_type  varchar        [not null]
+  employee_limit int            [not null]
+  timezone       varchar        [not null, default: 'UTC']
+  status         varchar        [not null, default: 'active']
+  created_at     timestamp      [not null, default: now()]
+  updated_at     timestamp      [not null, default: now()]
+}
+
+Table users {
+  id             uuid [pk]
+  company_id     uuid           [ref: > companies.id, not null]
+  email          varchar        [not null]
+  password_hash  varchar        [not null]
+  role_id        uuid           [ref: > roles.id, not null]   -- FIXED: FK added
+  fcm_token      varchar                                       -- ADDED: push notifications
+  is_active      boolean        [not null, default: true]
+  last_login_at  timestamp
+  created_at     timestamp      [not null, default: now()]
+  updated_at     timestamp      [not null, default: now()]
+  indexes { (company_id, email) [unique] }
+}
+
+Table roles {
+  id             uuid [pk]
+  company_id     uuid           [ref: > companies.id, not null]
+  name           varchar        [not null]
+  description    varchar
+  created_at     timestamp      [not null, default: now()]
+  updated_at     timestamp      [not null, default: now()]
+}
+
+Table permissions {
+  id             uuid [pk]
+  code           varchar        [not null, unique]
+  description    varchar
+}
+
+Table role_permissions {
+  role_id        uuid           [ref: > roles.id, not null]
+  permission_id  uuid           [ref: > permissions.id, not null]
+  indexes { (role_id, permission_id) [pk] }  -- ADDED: composite PK
+}
+-- ══════════════════════════════════════
+-- DOMAIN 2: ORGANIZATION
+-- ══════════════════════════════════════
+
+Table departments {
+  id             uuid [pk]
+  company_id     uuid           [ref: > companies.id, not null]
+  name           varchar        [not null]
+  manager_id     uuid           [ref: > employees.id]  -- nullable: breaks circular FK
+  created_at     timestamp      [not null, default: now()]
+  updated_at     timestamp      [not null, default: now()]
+}
+
+Table teams {
+  id             uuid [pk]
+  company_id     uuid           [ref: > companies.id, not null]
+  department_id  uuid           [ref: > departments.id, not null]
+  name           varchar        [not null]
+  created_at     timestamp      [not null, default: now()]
+  updated_at     timestamp      [not null, default: now()]
+}
+
+Table work_locations {
+  id             uuid [pk]
+  company_id     uuid           [ref: > companies.id, not null]
+  name           varchar        [not null]
+  address        text
+  geo_required   boolean        [not null, default: false]
+  latitude       numeric                                        -- ADDED
+  longitude      numeric                                        -- ADDED
+  radius_meters  int                                            -- ADDED: geo-fence radius
+  created_at     timestamp      [not null, default: now()]
+}
+
+Table shifts {
+  id             uuid [pk]
+  company_id     uuid           [ref: > companies.id, not null]
+  name           varchar        [not null]                      -- ADDED: e.g. 'Morning'
+  start_time     time           [not null]
+  end_time       time           [not null]
+  grace_minutes  int            [not null, default: 0]
+  created_at     timestamp      [not null, default: now()]
+}
+
+Table employee_shifts {  -- NEW TABLE: assigns shifts to employees
+  id             uuid [pk]
+  employee_id    uuid           [ref: > employees.id, not null]
+  shift_id       uuid           [ref: > shifts.id, not null]
+  effective_from date           [not null]
+  effective_to   date
+  is_active      boolean        [not null, default: true]
+  created_at     timestamp      [not null, default: now()]
+  indexes { (employee_id, effective_from) [unique] }
+}
+-- ══════════════════════════════════════
+-- DOMAIN 3: EMPLOYEES
+-- ══════════════════════════════════════
+
+Table employees {
+  id                uuid [pk]
+  company_id        uuid     [ref: > companies.id, not null]
+  user_id           uuid     [ref: > users.id, not null, unique]
+  employee_code     varchar  [not null]
+  department_id     uuid     [ref: > departments.id, not null]
+  team_id           uuid     [ref: > teams.id]
+  manager_id        uuid     [ref: > employees.id]
+  date_of_joining   date     [not null]
+  employment_status varchar  [not null, default: 'active']
+  date_of_leaving   date                                      -- ADDED
+  created_at        timestamp [not null, default: now()]
+  updated_at        timestamp [not null, default: now()]
+  indexes { (company_id, employee_code) [unique] }
+}
+
+Table employee_documents {
+  id              uuid [pk]
+  employee_id     uuid     [ref: > employees.id, not null]
+  document_type   varchar  [not null]
+  file_url        text     [not null]
+  file_name       varchar                                     -- ADDED
+  expiry_date     date
+  uploaded_by     uuid     [ref: > users.id, not null]        -- ADDED
+  created_at      timestamp [not null, default: now()]
+}
+
+Table salary_structures {
+  id                    uuid [pk]
+  employee_id           uuid     [ref: > employees.id, not null]
+  basic_salary          numeric  [not null]
+  hra                   numeric  [not null, default: 0]        -- ADDED
+  transport_allowance   numeric  [not null, default: 0]        -- ADDED
+  other_allowances      numeric  [not null, default: 0]        -- ADDED
+  gross_salary          numeric  [not null]
+  effective_from        date     [not null]
+  effective_to          date                                   -- ADDED
+  is_active             boolean  [not null, default: true]     -- ADDED
+  created_at            timestamp [not null, default: now()]
+}
+-- ══════════════════════════════════════
+-- DOMAIN 4: ATTENDANCE
+-- ══════════════════════════════════════
+
+Table attendance_logs {
+  id               uuid [pk]
+  employee_id      uuid     [ref: > employees.id, not null]
+  attendance_date  date     [not null]
+  shift_id         uuid     [ref: > shifts.id]               -- ADDED
+  work_location_id uuid     [ref: > work_locations.id]       -- ADDED
+  check_in         time
+  check_out        time
+  total_hours      numeric
+  status           varchar  [not null]
+  created_at       timestamp [not null, default: now()]
+  updated_at       timestamp [not null, default: now()]
+  indexes { (employee_id, attendance_date) [unique] }
+}
+
+Table attendance_requests {
+  id               uuid [pk]
+  attendance_id    uuid     [ref: > attendance_logs.id, not null]
+  employee_id      uuid     [ref: > employees.id, not null]   -- ADDED
+  reason           text     [not null]
+  status           varchar  [not null, default: 'pending']
+  requested_at     timestamp [not null, default: now()]       -- ADDED
+  approved_by      uuid     [ref: > users.id]
+  approved_at      timestamp                                  -- ADDED
+  rejection_reason text                                       -- ADDED
+  created_at       timestamp [not null, default: now()]
+}
+
+Table overtime_records {
+  id               uuid [pk]
+  employee_id      uuid     [ref: > employees.id, not null]
+  attendance_id    uuid     [ref: > attendance_logs.id, not null]
+  hours            numeric  [not null]
+  status           varchar  [not null, default: 'pending']    -- FIXED: was boolean
+  approved_by      uuid     [ref: > users.id]                 -- ADDED
+  approved_at      timestamp                                  -- ADDED
+  rejection_reason text                                       -- ADDED
+  created_at       timestamp [not null, default: now()]
+}
+-- ══════════════════════════════════════
+-- DOMAIN 5: LEAVE
+-- ══════════════════════════════════════
+
+Table leave_types {
+  id              uuid [pk]
+  company_id      uuid     [ref: > companies.id, not null]
+  name            varchar  [not null]
+  max_days        int      [not null]
+  is_paid         boolean  [not null, default: true]          -- ADDED
+  carry_forward   boolean  [not null, default: false]         -- ADDED
+  created_at      timestamp [not null, default: now()]
+}
+
+Table leave_balances {
+  id              uuid [pk]
+  employee_id     uuid     [ref: > employees.id, not null]
+  leave_type_id   uuid     [ref: > leave_types.id, not null]
+  year            int      [not null]                         -- ADDED: annual cycle
+  entitled_days   numeric  [not null]                         -- ADDED
+  balance         numeric  [not null]
+  carried_forward numeric  [not null, default: 0]             -- ADDED
+  updated_at      timestamp [not null, default: now()]
+  indexes { (employee_id, leave_type_id, year) [unique] }
+}
+
+Table leave_requests {
+  id               uuid [pk]
+  employee_id      uuid     [ref: > employees.id, not null]
+  leave_type_id    uuid     [ref: > leave_types.id, not null]
+  start_date       date     [not null]
+  end_date         date     [not null]
+  total_days       numeric  [not null]                        -- ADDED
+  reason           text
+  status           varchar  [not null, default: 'pending']
+  approved_by      uuid     [ref: > users.id]                 -- ADDED
+  approved_at      timestamp                                  -- ADDED
+  rejection_reason text                                       -- ADDED
+  created_at       timestamp [not null, default: now()]
+  updated_at       timestamp [not null, default: now()]
+}
+
+Table holidays {
+  id              uuid [pk]
+  company_id      uuid     [ref: > companies.id, not null]
+  date            date     [not null]
+  name            varchar  [not null]
+  is_optional     boolean  [not null, default: false]         -- ADDED
+  created_at      timestamp [not null, default: now()]
+  indexes { (company_id, date) [unique] }
+}
+
+-- ══════════════════════════════════════
+-- DOMAIN 6: PAYROLL
+-- ══════════════════════════════════════
+
+Table payroll_cycles {
+  id              uuid [pk]
+  company_id      uuid     [ref: > companies.id, not null]
+  month           date     [not null]    -- FIXED: was varchar. e.g. 2026-01-01
+  status          varchar  [not null, default: 'draft']
+  triggered_by    uuid     [ref: > users.id]                  -- ADDED
+  finalized_at    timestamp                                   -- ADDED
+  created_at      timestamp [not null, default: now()]
+  updated_at      timestamp [not null, default: now()]
+  indexes { (company_id, month) [unique] }
+}
+
+Table payroll_records {
+  id                   uuid [pk]
+  payroll_cycle_id     uuid     [ref: > payroll_cycles.id, not null]
+  employee_id          uuid     [ref: > employees.id, not null]
+  basic_salary         numeric  [not null]                    -- ADDED
+  hra                  numeric  [not null, default: 0]        -- ADDED
+  transport_allowance  numeric  [not null, default: 0]        -- ADDED
+  other_allowances     numeric  [not null, default: 0]        -- ADDED
+  gross_salary         numeric  [not null]
+  attendance_deduction numeric  [not null, default: 0]        -- ADDED
+  leave_deduction      numeric  [not null, default: 0]        -- ADDED
+  other_deductions     numeric  [not null, default: 0]        -- ADDED
+  overtime_pay         numeric  [not null, default: 0]        -- ADDED
+  net_salary           numeric  [not null]
+  working_days         int      [not null]                    -- ADDED
+  present_days         int      [not null]                    -- ADDED
+  created_at           timestamp [not null, default: now()]
+  updated_at           timestamp [not null, default: now()]
+  indexes { (payroll_cycle_id, employee_id) [unique] }
+}
+
+Table payslips {
+  id                  uuid [pk]
+  payroll_record_id   uuid     [ref: > payroll_records.id, not null, unique]
+  pdf_url             text     [not null]
+  file_size_bytes     int                                     -- ADDED
+  generated_at        timestamp [not null, default: now()]
+}
+-- ══════════════════════════════════════
+-- DOMAIN 7: WORKFLOWS & APPROVALS
+-- ══════════════════════════════════════
+
+Table workflows {
+  id              uuid [pk]
+  company_id      uuid     [ref: > companies.id, not null]
+  module          varchar  [not null]  -- leave|attendance|overtime
+  is_active       boolean  [not null, default: true]
+  created_at      timestamp [not null, default: now()]
+  updated_at      timestamp [not null, default: now()]
+  indexes { (company_id, module) [unique] }
+}
+
+Table approval_steps {
+  id              uuid [pk]
+  workflow_id     uuid     [ref: > workflows.id, not null]
+  step_order      int      [not null]
+  role_id         uuid     [ref: > roles.id, not null]
+  indexes { (workflow_id, step_order) [unique] }
+}
+
+Table approval_logs {
+  id              uuid [pk]
+  entity_type     varchar  [not null]
+  entity_id       uuid     [not null]                         -- ADDED
+  action          varchar  [not null]  -- approve|reject
+  acted_by        uuid     [ref: > users.id, not null]
+  acted_at        timestamp [not null, default: now()]
+  comment         text                                        -- ADDED
+}
+
+-- ══════════════════════════════════════
+-- PLATFORM & BILLING
+-- ══════════════════════════════════════
+
+Table plans {
+  id                  uuid [pk]
+  name                varchar  [not null]
+  price_per_employee  numeric  [not null]
+  features            jsonb    [not null, default: '{}']
+  is_active           boolean  [not null, default: true]      -- ADDED
+  created_at          timestamp [not null, default: now()]
+}
+
+Table subscriptions {
+  id              uuid [pk]
+  company_id      uuid     [ref: > companies.id, not null]
+  plan_id         uuid     [ref: > plans.id, not null]
+  start_date      date     [not null]
+  end_date        date
+  status          varchar  [not null, default: 'active']
+  created_at      timestamp [not null, default: now()]
+  updated_at      timestamp [not null, default: now()]
+}
+
+Table invoices {
+  id               uuid [pk]
+  subscription_id  uuid     [ref: > subscriptions.id, not null]
+  invoice_number   varchar  [not null, unique]                -- ADDED
+  amount           numeric  [not null]
+  currency         varchar  [not null, default: 'USD']        -- ADDED
+  status           varchar  [not null, default: 'draft']
+  issued_at        timestamp                                  -- ADDED
+  due_date         date     [not null]                        -- ADDED
+  paid_at          timestamp                                  -- ADDED
+  created_at       timestamp [not null, default: now()]
+}
+
+Table payments {
+  id               uuid [pk]
+  invoice_id       uuid     [ref: > invoices.id, not null]
+  amount           numeric  [not null]                        -- ADDED
+  currency         varchar  [not null, default: 'USD']        -- ADDED
+  gateway          varchar  [not null]
+  transaction_ref  varchar  [not null]
+  status           varchar  [not null]                        -- ADDED
+  paid_at          timestamp                                  -- ADDED
+  failure_reason   text                                       -- ADDED
+  created_at       timestamp [not null, default: now()]
+}
+
+Table audit_logs {
+  id              uuid [pk]
+  company_id      uuid     [ref: > companies.id, not null]
+  user_id         uuid     [ref: > users.id, not null]
+  action          varchar  [not null]   -- CREATE|UPDATE|DELETE
+  entity          varchar  [not null]
+  entity_id       uuid     [not null]                         -- ADDED
+  old_values      jsonb                                       -- ADDED
+  new_values      jsonb                                       -- ADDED
+  ip_address      varchar                                     -- ADDED
+  user_agent      text                                        -- ADDED
+  created_at      timestamp [not null, default: now()]
+}
+1.4 Indexing & Constraints Strategy
+TableIndex / ConstraintTypePurposeusers(company_id, email)UNIQUEPrevent duplicate emails within a tenantemployees(company_id, employee_code)UNIQUEUnique employee codes per companyemployees(company_id, department_id)INDEXManager dashboard team queriesattendance_logs(employee_id, attendance_date)UNIQUEOne log per employee per dayattendance_logs(company_id, attendance_date)INDEXCompany-wide daily attendance reportsleave_balances(employee_id, leave_type_id, year)UNIQUEOne balance per type per yearleave_requests(employee_id, status)INDEXEmployee leave history filteringpayroll_records(payroll_cycle_id, employee_id)UNIQUEPrevent duplicate payroll recordspayroll_cycles(company_id, month)UNIQUEOne cycle per company per monthworkflows(company_id, module)UNIQUEOne active workflow per module per companyapproval_steps(workflow_id, step_order)UNIQUEOrdered steps within a workflowaudit_logs(company_id, created_at)INDEXPaginated audit trail queriesholidays(company_id, date)UNIQUENo duplicate holidays per companyemployee_shifts(employee_id, effective_from)UNIQUENo overlapping shift assignments
+
+
+2.  API Design & Contracts
+REST · Express · TypeScript DTOs · class-validator
+2.1 Global Conventions
+ConventionRuleBase URLhttps://api.peopleops.com/v1Content-Typeapplication/json for all requests and responsesAuthenticationAuthorization: Bearer <access_token> on all protected routesMulti-tenancycompany_id always derived from JWT - never from request paramsIDsUUID v4 for all primary keysTimestampsISO 8601 UTC - 2026-02-21T08:30:00ZDatesYYYY-MM-DD formatPaginationQuery: page (default 1), limit (default 20). Response meta: { total, page, limit, totalPages }Soft DeletesEmployees: employment_status = terminated. Users: is_active = false. No hard deletes.Rate Limiting100 req/min per user for standard routes. 10 req/min for auth routes.
+2.2 Request & Response Envelope
+Success
+{
+  "success": true,
+  "data": { ... },              // Single object or array
+  "meta": {                     // List endpoints only
+    "total": 142,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 8
+  }
+}
+Error
+{
+  "success": false,
+  "error": {
+    "code":    "VALIDATION_ERROR",    // Machine-readable
+    "message": "Validation failed",
+    "errors": [                       // 422 only
+      { "field": "start_date", "message": "must be a valid date" }
+    ]
+  }
+}
+2.3 Endpoint Registry by Module
+ModuleBase PathKey EndpointsAuth ScopeAuth/authregister, login, refresh, logout, forgot-password, reset-passwordPublic / AuthenticatedUsers/usersCRUD, role assignmentHR AdminRoles/roles/roles, /roles/:id, /roles/:id/permissionsHR AdminCompany Org/departments /teams /work-locations /shifts /holidaysFull CRUD per resourceHR Admin / Manager (GET)Employees/employees/employees, /:id, /:id/documents, /:id/salaryHR AdminAttendance/attendancecheck-in, check-out, logs, /:id, /requests, /requests/:id/approve|rejectEmployee / Manager / HR AdminOvertime/overtime/overtime, /:id/approveManager / HR AdminLeave/leave-types /leave-balances /leave-requests /holidaysTypes, balances, requests, approve/rejectEmployee / Manager / HR AdminPayroll/payroll-cycles /payroll-recordsCycles, run, finalize, records, payslipsHR Admin / Employee (own payslip)Workflows/workflows /approval-steps /approval-logsCRUD + logsHR AdminBilling/plans /subscriptions /invoices /paymentsPlan mgmt, invoices, paymentsSuper Admin / HR Admin (view)Super Admin/super-admincompanies, analytics, impersonateSuper Admin only
+2.4 Versioning & Deprecation Strategy
+• All endpoints are prefixed with /v1. Breaking changes require a new version prefix /v2.
+• Deprecated endpoints return a Deprecation: true response header with a Sunset date.
+• Old versions are supported for a minimum of 6 months after a new version is released.
+• Non-breaking additions (new optional fields, new endpoints) do not require a version bump.
+
+
+
+3.  Auth & Security Design
+Passport.js · JWT · RBAC · bcrypt · Helmet
+3.1 Authentication Strategy
+StrategyLibraryPurposeLocal Strategypassport-localValidates email + bcrypt password on POST /auth/loginJWT Strategypassport-jwtValidates Bearer token on all protected routesSuper Admin JWTpassport-jwt (separate instance)Uses different secret, rejects tokens with company_id
+3.2 Token Lifecycle Flow
+
+01Login
+POST /auth/login. LocalStrategy verifies email + bcrypt hash (cost factor 12). On success → generate tokens.
+02Issue Tokens
+Access Token: JWT signed with ACCESS_TOKEN_SECRET, 15min expiry, payload: { user_id, company_id, role, permissions[] }. Refresh Token: UUID stored in refresh_tokens table with expiry 7 days.
+03Store Tokens
+Access Token returned in response body. Refresh Token set as HttpOnly Secure SameSite=Strict cookie.
+04Authenticated Request
+Client sends Authorization: Bearer <token>. JwtStrategy verifies signature + expiry, attaches decoded payload to req.user.
+05Token Expiry
+Access Token expires (401). Client calls POST /auth/refresh with cookie. Server validates refresh token from DB, issues new access token, rotates refresh token.
+06Logout
+POST /auth/logout. Deletes refresh token from DB. Clears cookie. All future refresh attempts fail.
+07Password Reset
+POST /auth/forgot-password issues a signed 1-hour reset token sent by email. POST /auth/reset-password validates token + updates bcrypt hash.
+3.3 Role-Based Access Control (RBAC)
+After JWT verification, the RBAC middleware resolves the user's permissions from the role_permissions table. Results are cached in Redis with a 5-minute TTL per user_id. Route handlers declare required permissions via a decorator.
+
+// Permission guard usage
+router.post('/payroll-cycles/:id/run',
+  requirePermission('payroll:run'),
+  payrollController.runCycle
+);
+
+// JWT payload interface
+interface JwtPayload {
+  user_id:     string;
+  company_id:  string;    // absent for Super Admin tokens
+  role:        string;
+  permissions: string[];  // ['payroll:run','attendance:approve',...]
+  iat: number; exp: number;
+}
+3.4 Super Admin Isolation
+• Super Admin JWT uses a separate SUPER_ADMIN_TOKEN_SECRET - tokens are cryptographically incompatible with tenant tokens
+• SuperAdminGuard rejects any token that contains a company_id field
+• All /super-admin routes mounted separately and protected exclusively by SuperAdminGuard
+• Impersonation: generates a short-lived (30 min) scoped token with target company_id tagged impersonated: true - every action is logged in audit_logs with impersonated flag
+• Super Admin login requires TOTP MFA (Google Authenticator) in addition to password
+
+3.5 Security Hardening Checklist
+ControlImplementationStatusHTTPS everywhereTLS termination at load balancer / reverse proxyRequiredSecurity headershelmet.js: X-Frame-Options, CSP, HSTS, X-Content-Type-OptionsRequiredRate limitingexpress-rate-limit: 100/min standard, 10/min auth routesRequiredPassword hashingbcrypt cost factor 12RequiredInput validationclass-validator DTOs on all endpoints, strip unknown fieldsRequiredSQL injectionTypeORM parameterized queries - no raw string concatenationRequiredCORSWhitelist of known frontend origins only - no wildcard *RequiredJWT storageAccess token in memory (not localStorage), refresh in HttpOnly cookieRequiredSensitive fieldspassword_hash never returned in API responses - excluded in TypeORM selectRequiredAudit loggingAll mutating actions logged with user_id, entity, old/new valuesRequiredDependency scanningnpm audit in CI pipeline - block on high/critical vulnerabilitiesRequired
+
+
+4.  Module-by-Module Design
+Business logic · Service layer · Key flows per module
+4.1 Company & Organization
+Handles tenant provisioning, org hierarchy setup, and configuration. Company records are created by the Super Admin on plan assignment. The Company Admin then configures departments, teams, locations, shifts, and holidays before onboarding employees.
+
+OperationService MethodKey LogicCreate departmentDepartmentService.create()Insert with manager_id = null. Update manager_id after employee record is created.Assign shift to employeeEmployeeShiftService.assign()Set effective_to on the previous active shift record, insert new employee_shifts row.Configure geo-fenceWorkLocationService.update()Store latitude, longitude, radius_meters. attendance module uses these on check-in.Add holidayHolidayService.create()UNIQUE(company_id, date) prevents duplicates. Payroll engine queries this table to calculate working days.
+4.2 Employee Management
+Manages the full employee lifecycle from onboarding to offboarding. Employee records are always linked to a user account (1:1). Salary structures are versioned - multiple records per employee, differentiated by effective_from date.
+
+OperationService MethodKey LogicCreate employeeEmployeeService.create()1. Create user account (or link existing). 2. Insert employee record. 3. Update department.manager_id if needed.Assign salary structureSalaryService.create()Set is_active = false on the previous structure. Insert new record with effective_from.Terminate employeeEmployeeService.terminate()Set employment_status = terminated, date_of_leaving = today. Set user.is_active = false.Upload documentDocumentService.upload()Multipart upload → S3/Spaces → store signed URL in employee_documents. Notify HR of expiry_date if set.
+4.3 Attendance & Time Tracking
+The most frequently hit module - every employee check-in and check-out goes through this service. Designed for high throughput with minimal DB writes per request.
+
+
+01Check-In Request
+Employee hits POST /attendance/check-in from Mobile App with { employee_id, attendance_date, check_in, location_id?, coordinates? }.
+02Validate Location
+If work_location.geo_required = true: calculate distance between submitted coordinates and work_location (lat, lng, radius). Reject if outside radius.
+03Resolve Shift
+Fetch active employee_shifts record for today. Determine if check-in is on time, late, or very late (> grace_minutes).
+04Create or Update Log
+UPSERT attendance_logs (employee_id, attendance_date). Set check_in, shift_id, work_location_id, status = present or late.
+05Check-Out
+POST /attendance/check-out. Update attendance_logs: set check_out, compute total_hours = (check_out - check_in). Trigger OvertimeWorker if total_hours > shift duration.
+06Overnight Cron
+A daily cron job (00:30) marks all attendance_logs with no check_in for that date as absent for all active employees.
+07Correction Request
+Employee submits POST /attendance/requests with reason. WorkflowEngine.initiate('attendance', request_id) routes to manager for approval.
+4.4 Leave Management
+
+01Request Submission
+POST /leave-requests. Validate: start_date <= end_date, leave type exists for company, employee has sufficient balance for the year.
+02Working Day Calculation
+Calculate total_days by counting dates between start and end, excluding weekends and holidays (query holidays table for company_id).
+03Balance Pre-Check
+Check leave_balances WHERE employee_id = ? AND leave_type_id = ? AND year = YEAR(start_date). Reject if balance < total_days.
+04Workflow Initiation
+WorkflowEngine.initiate('leave', leave_request_id). Resolve approval chain from workflows + approval_steps tables.
+05Approval
+On final approval: set leave_requests.status = approved, approved_by, approved_at. Deduct total_days from leave_balances.balance.
+06Rejection
+Set status = rejected, rejection_reason. Notify employee. No balance change.
+07Cancellation
+Employee can cancel a pending request. If already approved, HR Admin must cancel - balance is restored.
+08Annual Reset
+Cron job on Jan 1: insert new leave_balances rows for year = new year for all active employees. Apply carry_forward if leave_types.carry_forward = true.
+4.5 Payroll Processing
+Payroll is the most complex module. Computation is always performed asynchronously via a BullMQ job worker to prevent HTTP timeouts on large companies. The cycle must be manually finalized by HR Admin - finalization locks the cycle and triggers payslip generation.
+
+StepActionData Source1. TriggerHR Admin clicks Run or auto-cron fires on configured dayManual: POST /payroll-cycles/:id/run. Auto: BullMQ cron2. Fetch EmployeesGet all active employees for companyemployees WHERE employment_status IN (active, probation, notice)3. Salary ResolutionFind latest salary_structures record effective <= cycle monthsalary_structures WHERE effective_from <= cycle.month ORDER BY effective_from DESC LIMIT 14. Working DaysCount calendar days minus weekends minus company holidaysholidays table + calendar logic5. Present DaysCount attendance_logs with status IN (present, half-day)attendance_logs WHERE attendance_date BETWEEN cycle start and end6. Attendance Deduction(absent_days / working_days) × basic_salary. Half-day = 0.5Computed in PayrollWorker7. Leave DeductionApproved leave days where leave_type.is_paid = falseleave_requests JOIN leave_types WHERE is_paid = false8. Overtime PayApproved overtime hours × (basic_salary / (working_days × 8))overtime_records WHERE status = approved9. Net Salarygross_salary - deductions + overtime_payComputed10. PersistUpsert payroll_records. Update cycle status = computedpayroll_records UPSERT11. FinalizeHR locks cycle. Status = finalized. Enqueue PdfWorker per employee.POST /payroll-cycles/:id/finalize12. Payslip PDFPdfWorker generates PDF, uploads to S3/Spaces, stores URL in payslipsBull job - async
+4.6 Employee Self-Service (ESS)
+The Mobile App is the primary ESS surface. All ESS endpoints are standard REST calls - no separate ESS API. Access is enforced by RBAC: employees can only read their own records (company_id + employee_id scoped).
+
+FeatureEndpointNotesView attendanceGET /attendance?employee_id={self}employee_id auto-injected from JWT - employees cannot pass a different IDApply leavePOST /leave-requestsValidates balance before accepting requestView leave balanceGET /leave-balances?employee_id={self}&year={current}Returns all leave types with balance for current yearDownload payslipGET /payroll-records/:id/payslipReturns signed S3 URL (15 min expiry). Employee can only access own records.View documentsGET /employees/:id/documentsScoped to own employee_id onlyProfile update requestPOST /employees/:id/update-requestsCreates a pending request - HR Admin approves the change
+
+
+5.  Approval Workflow Engine
+Dynamic multi-level · configurable per company · full audit trail
+5.1 Design Overview
+The workflow engine is a generic, reusable service that handles multi-level approvals for any approvable entity (leave requests, attendance corrections, overtime). Each company configures its own approval chain per module via the workflows and approval_steps tables. The engine is completely decoupled from the entity it is approving.
+
+// WorkflowEngine interface
+interface WorkflowEngine {
+  initiate(entityType: string, entityId: string): Promise<void>;
+  approve(entityType: string, entityId: string, actorUserId: string, comment?: string): Promise<void>;
+  reject(entityType: string, entityId: string, actorUserId: string, reason: string): Promise<void>;
+  getCurrentStep(entityType: string, entityId: string): Promise<ApprovalStep | null>;
+}
+5.2 Execution Flow
+
+01Initiate
+WorkflowEngine.initiate() is called after the entity is created. Looks up the active workflow for the module. If no workflow configured, entity is auto-approved.
+02Resolve Step
+Query approval_steps for the workflow ordered by step_order. Find the first step with no corresponding approval_logs entry for this entity_id.
+03Notify Approvers
+Query users WHERE role_id = step.role_id AND company_id = entity.company_id. Enqueue notification job for each approver (email + push + SMS).
+04Approval Action
+Approver calls PATCH /:entity/:id/approve. RBAC guard checks approver holds the correct role for the current step. Guard also checks it's actually their turn.
+05Log Action
+Write approval_logs entry: { entity_type, entity_id, action: 'approve', acted_by, acted_at, comment }.
+06Check Remaining Steps
+Query approval_steps again. Are there more steps without a log entry? If yes - notify next step approvers.
+07Final Approval
+All steps approved. Update entity status = approved. Trigger post-approval side effects (balance deduction, notification to employee).
+08Rejection
+Any approver rejects at any step. Entity status = rejected immediately. No further steps processed. Employee notified with rejection_reason.
+5.3 Escalation & Timeout Rules
+RuleBehaviourConfigurationReminder notificationIf an approver has not acted within 24 hours, a reminder notification is sentHardcoded at 24h in MVP; configurable per workflow in Phase 2EscalationIf an approver has not acted within 48 hours, the request is escalated to the next role in the chainPhase 2 feature - flagged in workflows tableAuto-approvalIf no workflow is configured for a module, entities are immediately set to approvedDefault behaviour - HR Admin must explicitly configure a workflow to require approvalWithdrawalEmployee can withdraw a pending entity at any step before the current step is acted onstatus = withdrawn. All in-progress approval steps are cancelled.
+
+
+6.  Notification System
+SendGrid · Firebase FCM · Twilio SMS · BullMQ async delivery
+6.1 Channel Architecture
+ChannelProviderSDKUse CaseEmailSendGrid@sendgrid/mailTransactional emails: payslip ready, leave decisions, account invites, invoicesPush (Mobile)Firebase Cloud Messagingfirebase-adminReal-time mobile alerts: check-in reminder, approval decisions, payslip availableSMSTwiliotwilioCritical only: OTP for password reset, MFA for Super Admin, payslip alert (optional per company)
+FCM Token Management
+The users.fcm_token column stores the device FCM token registered when the employee logs into the Mobile App. Tokens are updated on each login and removed on logout. If a push notification delivery fails with registration-not-found, the token is cleared automatically.
+6.2 Event Registry
+Event CodeTriggerEmailPushSMSRecipientsUSER_INVITEDNew user account createdYesNoNoNew userPASSWORD_RESETForgot password requestYesNoYes (OTP)Requesting userLEAVE_SUBMITTEDEmployee submits leaveYesYesNoAll current-step approversLEAVE_APPROVEDFinal leave approvalYesYesNoEmployeeLEAVE_REJECTEDLeave rejection at any stepYesYesNoEmployeeATTENDANCE_CORRECTION_SUBMITTEDCorrection request createdNoYesNoManager / approverATTENDANCE_CORRECTION_APPROVEDCorrection approvedNoYesNoEmployeeOVERTIME_APPROVEDOvertime approvedNoYesNoEmployeePAYROLL_COMPUTEDPayroll run completesYesYesNoHR AdminPAYSLIP_READYPayslip PDF generatedYesYesYes (config)EmployeeINVOICE_ISSUEDNew invoice generatedYesNoNoCompany AdminPAYMENT_FAILEDSubscription payment failsYesNoYesCompany AdminSUPER_ADMIN_MFASuper Admin login MFANoNoYesSuper Admin
+6.3 Async Delivery via Job Queue
+All notifications are dispatched asynchronously via BullMQ to avoid blocking the HTTP response cycle. The NotificationService never calls provider APIs directly.
+
+// Notification dispatch - never blocking
+class NotificationService {
+  async dispatch(event: NotificationEvent, payload: NotificationPayload) {
+    await this.queue.add('send-notification', { event, payload }, {
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 5000 },
+    });
+    // Returns immediately - HTTP response is not blocked
+  }
+}
+
+// Worker processes the job asynchronously
+notificationWorker.process(async (job) => {
+  const { event, payload } = job.data;
+  const template = TemplateRegistry.get(event);
+  if (template.email)  await sendGridAdapter.send(payload);
+  if (template.push)   await fcmAdapter.send(payload);
+  if (template.sms)    await twilioAdapter.send(payload);
+});
+
+
+7.  File Storage & PDF Generation
+S3-Compatible · Signed URLs · Puppeteer/pdfmake · BullMQ
+7.1 Storage Strategy
+File storage uses an S3-compatible object storage service (DigitalOcean Spaces or AWS S3 - configured via environment variables). The application is fully storage-agnostic: the StorageService uses the AWS SDK (which works with any S3-compatible provider).
+
+Bucket/PrefixContentAccessURL Expirypeopleops/payslips/{company_id}/{year}/{month}/Payslip PDFsPrivate - signed URL only15 minutespeopleops/documents/{company_id}/{employee_id}/Employee documentsPrivate - signed URL only15 minutespeopleops/exports/{company_id}/Report CSV/PDF exportsPrivate - signed URL only1 hour
+Security
+No file is ever publicly accessible. All access is via time-limited pre-signed URLs generated on demand by the API. The frontend never stores or caches the signed URL - it requests a fresh one each time.
+7.2 Payslip PDF Generation
+Payslip PDF generation is handled by a dedicated BullMQ worker (PdfWorker) triggered after payroll finalization. This is never done synchronously in the HTTP request.
+
+
+01Trigger
+POST /payroll-cycles/:id/finalize sets cycle status = finalized and enqueues one PdfWorker job per payroll_record in the cycle.
+02Load Data
+PdfWorker fetches full payroll_record with employee details, company details, and salary breakdown from PostgreSQL.
+03Render Template
+Render a pre-defined HTML payslip template (Handlebars or EJS) with the payroll data injected. Template includes company logo, employee info, and line-item breakdown.
+04Generate PDF
+Pass the rendered HTML to Puppeteer (headless Chromium) or pdfmake to produce a PDF buffer. pdfmake is lighter - preferred for containerized environments.
+05Upload to Storage
+Upload the PDF buffer to S3/Spaces at the path: payslips/{company_id}/{year}/{month}/{employee_code}.pdf
+06Store Record
+Insert a row into payslips table with payroll_record_id, pdf_url (S3 key), file_size_bytes, generated_at.
+07Notify Employee
+Enqueue a notification job: PAYSLIP_READY event for the employee. Email + push + optional SMS.
+7.3 Employee Document Uploads
+Document uploads use multipart/form-data. The Express API receives the file buffer in memory (using multer with memory storage), validates file type and size, then streams the buffer to S3.
+
+// Upload flow
+1. Client sends multipart POST /employees/:id/documents
+2. multer memory storage receives buffer (max 10MB, allow: pdf|jpg|png)
+3. DocumentService.upload() calls StorageService.putObject(buffer, key, contentType)
+4. StorageService streams to S3 via @aws-sdk/client-s3 PutObjectCommand
+5. On success: INSERT employee_documents { employee_id, document_type, file_url: s3_key, file_name, uploaded_by }
+6. S3 key (not full URL) stored - signed URL generated on demand at GET time
+
+
+8.  Job Queue & Background Workers
+BullMQ · Redis · Named Queues · Dead-Letter Queue · Bull Board
+8.1 Queue Architecture - BullMQ + Redis
+BullMQ (the modern TypeScript-native successor to Bull) is used for all background job processing. All queues connect to a single managed Redis instance. Jobs are serialized to JSON. Workers run in the same Node.js process in MVP (can be split to separate worker processes in Phase 2).
+
+// Queue definitions - src/common/jobs/queues.ts
+export const QUEUES = {
+  PAYROLL:      'payroll-computation',
+  PDF:          'pdf-generation',
+  NOTIFICATION: 'notifications',
+  ATTENDANCE:   'attendance-cron',
+  LEAVE_RESET:  'leave-balance-reset',
+} as const;
+
+// Each queue: new Queue(QUEUES.PAYROLL, { connection: redisConnection })
+8.2 Worker Registry
+WorkerQueueTriggerConcurrencyDescriptionPayrollWorkerpayroll-computationManual (HR Admin) or cron (25th of month)1 per companyRuns full salary computation for all employees in a cycle. Upserts payroll_records.PdfWorkerpdf-generationAfter payroll finalization (one job per employee)5Renders HTML payslip template → Puppeteer/pdfmake → upload to S3 → update payslips table.NotificationWorkernotificationsAny API action that triggers a notification event10Routes to SendGrid / FCM / Twilio based on event template. 3 retries with exponential backoff.AttendanceCronWorkerattendance-cronDaily cron at 00:301Marks all employees with no attendance_log for yesterday as absent.LeaveResetWorkerleave-balance-resetYearly cron on Jan 1 at 01:001Creates new leave_balance rows for the new year. Applies carry_forward from previous year.PayrollCronWorkerpayroll-computationMonthly cron on configured day1Auto-creates payroll_cycle and enqueues payroll computation. HR Admin still must finalize.
+8.3 Retry, Dead-Letter & Monitoring
+ConcernStrategyRetry policyAll workers: 3 attempts. Backoff: exponential starting at 5 seconds (5s, 25s, 125s).Dead-letter queueJobs that exhaust all retries move to a failed state in BullMQ. Bull Board provides a UI to inspect and manually retry them.IdempotencyPayrollWorker uses UPSERT - re-running is safe. PdfWorker checks if payslips row already exists before regenerating.Job deduplicationPayrollWorker uses a BullMQ jobId = company_id + cycle_id to prevent duplicate computation jobs from being enqueued.MonitoringBull Board mounted at /admin/queues (internal IP access only). Shows queue depth, active jobs, failed jobs per worker.AlertingSentry captures worker exceptions. PagerDuty/Slack alert when dead-letter queue depth exceeds threshold.
+
+
+9.  Error Handling & Logging
+Winston · Sentry · Morgan · Structured JSON logs
+9.1 Error Classification
+ClassHTTP CodeLogged to SentryExamplesValidationError422NoDTO field failure, missing required body fieldAuthenticationError401NoInvalid JWT, expired token, wrong passwordAuthorizationError403NoInsufficient permissions for routeNotFoundError404NoEntity not found or belongs to different tenantConflictError409NoDuplicate employee_code, email already registeredBusinessRuleError400NoPayroll cycle already finalized, leave balance exceededExternalServiceError502Yes (warning)SendGrid, FCM, Twilio, S3 provider failuresDatabaseError500Yes (error)Query failure, connection timeout, constraint violationUnhandledError500Yes (critical)Any uncaught exception not matching above classes
+9.2 Global Error Handler
+// src/common/errors/error-handler.ts
+export function globalErrorHandler(
+  err: Error, req: Request, res: Response, _next: NextFunction
+): void {
+  const isKnown  = err instanceof AppError;
+  const status   = isKnown ? err.statusCode : 500;
+  const code     = isKnown ? err.code       : 'INTERNAL_ERROR';
+  const message  = isKnown ? err.message    : 'An unexpected error occurred';
+
+  logger.error({ code, message, path: req.path, stack: err.stack });
+
+  if (status >= 500) Sentry.captureException(err);
+
+  res.status(status).json({
+    success: false,
+    error: {
+      code,
+      message,
+      ...(err instanceof ValidationError && { errors: err.errors }),
+    }
+  });
+}
+9.3 Logging Stack
+ToolRoleConfigurationWinstonPrimary structured loggerTransports: Console (JSON, all envs) + File (rotating daily, 30-day retention, production only). Levels: error > warn > info > http > debug.MorganHTTP request loggingLogs method, URL, status, response time, user-agent on every request. Feeds into Winston at http level.SentryRemote error trackingSDK initialized at startup with SENTRY_DSN. Captures all 5xx exceptions and unhandled rejections. Groups by fingerprint. Slack/email alerts for new issues.Bull BoardJob queue monitoringMounted at /admin/queues. Protected by IP allowlist. Shows queue depth, active/failed/completed job counts per worker.
+
+
+10.  Deployment & Infrastructure
+DigitalOcean / Railway / Render · Docker · Single Region MVP
+10.1 Infrastructure Overview
+┌─────────────────────────────────────────────────────────────────┐
+│                  CDN / Edge (Cloudflare)                        │
+│   Static assets · DDoS protection · TLS termination             │
+└────────────────┬────────────────────────────────────────────────┘
+                 │
+┌────────────────▼────────────────────────────────────────────────┐
+│           Load Balancer / Reverse Proxy (Nginx / DO LB)         │
+└──────┬──────────────────────────────────────┬───────────────────┘
+       │                                      │
+┌──────▼───────────┐              ┌───────────▼─────────────────┐
+│   API Server(s)  │              │   Static Hosting (CDN)      │
+│   Docker         │              │   Angular Admin Dashboard   │
+│   Node.js+Express│              │   Angular Super Admin Panel │
+│   Port 3000      │              └─────────────────────────────┘
+└──────┬───────────┘
+       │
+┌──────▼───────────────────────────────────────────────────────┐
+│                  Data & Services Layer                        │
+│                                                               │
+│  ┌─────────────────┐  ┌────────────────┐  ┌───────────────┐ │
+│  │  PostgreSQL      │  │  Redis         │  │  S3 / Spaces  │ │
+│  │  Managed DB      │  │  Managed Cache │  │  Object Store │ │
+│  │  + PgBouncer     │  │  + Bull Queues │  │               │ │
+│  └─────────────────┘  └────────────────┘  └───────────────┘ │
+└───────────────────────────────────────────────────────────────┘
+10.2 Service Topology
+ServiceHostingReplicas (MVP)NotesExpress APIDocker - DO App Platform / Railway / Render2 replicasStateless. Zero-downtime rolling deploy. Health check: GET /health.Angular Admin DashboardStatic CDN - Netlify / Vercel / DO Spaces + CDNN/Ang build --configuration production. Env vars injected at build time.Angular Super AdminStatic CDN - separate deployment + domainN/ASeparate domain: admin-internal.peopleops.com. IP allowlist at CDN.React Native AppApp Store + Google PlayN/AExpo EAS Build. OTA JS updates via Expo Updates.PostgreSQLManaged PostgreSQL1 primary + 1 standbyAuto daily backups. PgBouncer for connection pooling.RedisManaged Redis / Upstash1 instanceBullMQ queues + RBAC permission cache + rate limiter state.S3 / Object StorageDigitalOcean Spaces or AWS S3N/APrivate bucket. All access via signed URLs.
+10.3 Environment Configuration
+# Server
+NODE_ENV=production
+PORT=3000
+API_BASE_URL=https://api.peopleops.com
+
+# Database
+DATABASE_URL=postgresql://user:pass@host:5432/peopleops
+DB_POOL_SIZE=10
+
+# Redis
+REDIS_URL=redis://default:pass@host:6379
+
+# JWT
+ACCESS_TOKEN_SECRET=<256-bit-random>
+ACCESS_TOKEN_EXPIRY=15m
+REFRESH_TOKEN_EXPIRY=7d
+SUPER_ADMIN_TOKEN_SECRET=<separate-256-bit-random>
+
+# Storage
+STORAGE_ENDPOINT=https://nyc3.digitaloceanspaces.com
+STORAGE_BUCKET=peopleops-files
+STORAGE_ACCESS_KEY=<key>
+STORAGE_SECRET_KEY=<secret>
+
+# Notifications
+SENDGRID_API_KEY=SG.xxx
+SENDGRID_FROM_EMAIL=noreply@peopleops.com
+FCM_SERVER_KEY=xxx
+TWILIO_ACCOUNT_SID=ACxxx
+TWILIO_AUTH_TOKEN=xxx
+TWILIO_FROM_NUMBER=+1xxxxxxxxxx
+
+# Monitoring
+SENTRY_DSN=https://xxx@sentry.io/xxx
+
+# Payroll Cron
+PAYROLL_CRON_DAY=25
+10.4 CI/CD Pipeline
+StageToolActionBlock on Failure?Code PushGitHub / GitLabDeveloper pushes to feature branch, opens PR against mainNoLint + Type CheckGitHub Actionseslint + tsc --noEmit on every PRYesUnit TestsGitHub Actions + JestJest unit tests for services, utils, DTOs. Coverage threshold >= 80%.YesIntegration TestsGitHub Actions + JestAPI integration tests against ephemeral test DB spun up in Docker.YesSecurity ScanGitHub Actions + npm auditnpm audit --audit-level=high. Blocks on high/critical CVEs.YesDocker BuildGitHub ActionsBuild and tag Docker image with commit SHA. Push to container registry.YesDB MigrationsGitHub ActionsRun TypeORM migrations against target environment before new container.YesDeploy APIDO App Platform / RailwayRolling deploy - new containers before old ones terminate.Yes (auto-rollback)Deploy Web AppsNetlify / VercelTriggered on merge to main. CDN cache invalidated automatically.YesHealth CheckGitHub ActionsGET /health after deploy. Rollback if non-200 response.Yes (auto-rollback)
+
+
+11.  Scalability & Performance
+Stateless API · PgBouncer · Redis Cache · Horizontal Scaling
+11.1 Current Architecture Limits (MVP)
+DimensionMVP CapacityBottleneckEmployees per companyUp to 1,000PostgreSQL query performance on attendance_logs at scaleConcurrent API requests~500 req/s (2 replicas)Node.js event loop - CPU-bound payroll computation offloaded to workersPayroll computation time< 60s for 1,000 employeesSingle PayrollWorker - can parallelize per department in Phase 2Database connections20 (2 replicas × 10 pool)PgBouncer pools connections, preventing connection exhaustionFile uploads10MB per fileMulter memory limit - stream to S3 directly in Phase 2 for larger files
+11.2 Scaling Strategies
+ScenarioStrategyTraffic spike (API)Add more API container replicas behind load balancer. Stateless design means no session affinity required.Payroll computation at scaleParallelize PayrollWorker by department or batch. Run multiple worker processes consuming from the same BullMQ queue.Database read pressureAdd PostgreSQL read replicas. Route all SELECT queries from reporting endpoints to read replica.Large number of tenantsCurrent shared-schema model scales to hundreds of tenants. For 1,000+ tenants, introduce tenant sharding by company_id range.Redis bottleneckUpgrade to Redis Cluster for horizontal scaling. BullMQ natively supports Redis Cluster.
+11.3 Caching Strategy
+Cache KeyTTLInvalidationPurposepermissions:{user_id}5 minutesOn role change or permission updateRBAC permission lookup - avoids DB query per requestcompany:{company_id}10 minutesOn company updateCompany config lookup in attendance and payrollholidays:{company_id}:{year}24 hoursOn holiday add/deletePayroll working day calculationleave_types:{company_id}10 minutesOn leave type changeLeave request validation
+11.4 Database Performance
+• All queries are company_id-scoped - partial indexes on company_id dramatically reduce scan size as tenant count grows
+• attendance_logs is the highest-volume table - composite index on (employee_id, attendance_date) covers the vast majority of queries
+• PgBouncer runs in transaction pooling mode - keeps connection count low even under high concurrency
+• TypeORM lazy loading is disabled - all relations must be explicitly joined using QueryBuilder to prevent N+1 queries
+• Long-running payroll aggregation queries use a read replica in Phase 2 to avoid blocking the primary
+• audit_logs is append-only and high-volume - consider partitioning by created_at month in Phase 2
+
+
+
+12.  CI/CD Pipeline Design
+GitHub Actions · Docker · Automated Tests · Zero-Downtime Deploy
+12.1 Pipeline Stages (Full Detail)
+Trigger: push to feature/* or PR to main
+
+Stage 1: LINT & TYPE CHECK
+  - npx eslint src/ --max-warnings 0
+  - npx tsc --noEmit
+  ✗ Block merge on failure
+
+Stage 2: UNIT TESTS
+  - jest --testPathPattern=src --coverage
+  - Coverage gates: statements >= 80%, branches >= 75%
+  ✗ Block merge on failure
+
+Stage 3: INTEGRATION TESTS
+  - docker-compose up -d postgres redis (ephemeral test containers)
+  - Run TypeORM migrations on test DB
+  - jest --testPathPattern=test/integration
+  - docker-compose down
+  ✗ Block merge on failure
+
+Stage 4: SECURITY AUDIT
+  - npm audit --audit-level=high
+  ✗ Block on high/critical CVEs
+
+Trigger: merge to main
+
+Stage 5: BUILD & PUSH
+  - docker build -t registry/api:${COMMIT_SHA} .
+  - docker push registry/api:${COMMIT_SHA}
+
+Stage 6: MIGRATE
+  - Run pending TypeORM migrations against production DB
+  ✗ Halt deploy if migration fails
+
+Stage 7: DEPLOY
+  - Rolling deploy: new container starts, health check passes, old terminates
+  - Angular apps: npm run build:prod → upload to CDN → invalidate cache
+
+Stage 8: SMOKE TEST
+  - GET https://api.peopleops.com/health → expect 200
+  ✗ Auto-rollback to previous image if non-200
+12.2 Branch & Release Strategy
+BranchPurposeDeploys Tofeature/*Individual feature development. PR required to merge to main.- (CI tests only)mainStable development branch. All PRs merge here.Staging environment automaticallyrelease/x.xRelease candidate. Cut from main before each production deploy.Production on approvalhotfix/*Critical bug fixes for production. Cut from latest release tag.Production immediately after tests pass
+12.3 Rollback Strategy
+ScenarioRollback MethodTime to RecoverBad deploy detected by smoke testAutomatic - deploy workflow reverts to previous Docker image< 2 minutesBug found post-deployManual rollback: re-deploy previous image tag via CI pipeline< 5 minutesBad database migrationMigration must include a down() function. Run typeorm migration:revert.< 10 minutesData corruptionRestore from most recent automated backup (daily snapshots on managed DB)< 4 hours (RTO)
+PeopleOps HRMS  |  System Design Document  |  Page  of 
+

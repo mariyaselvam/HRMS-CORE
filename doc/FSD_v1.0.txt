@@ -1,0 +1,396 @@
+﻿
+PeopleOps HRMS
+Functional Specification Document
+Backend Architecture  |  Database  |  API  |  Auth  |  Notifications  |  Deployment  |  Error Handling
+
+Version 1.0   |   February 2026   |   Status: Draft
+
+
+
+Node.js + ExpressTypeScriptPostgreSQLTypeORM
+
+
+Table of Contents
+1.Document Overview32.System Architecture3  2.1High-Level Architecture Diagram3  2.2Request Lifecycle4  2.3Module Structure43.Database Schema Overview5  3.1Entity Relationship Summary5  3.2Multi-Tenancy Strategy6  3.3Key Table Descriptions6  3.4Indexing Strategy74.API Contracts Summary8  4.1Global Conventions8  4.2Request & Response Envelope8  4.3Endpoint Registry95.Security & Auth Flow11  5.1Authentication Strategy11  5.2JWT Token Flow11  5.3Role-Based Access Control12  5.4Super Admin Isolation126.Approval Workflow Engine13  6.1Dynamic Multi-Level Approval13  6.2Approval Flow Execution137.Payroll Computation Flow14  7.1Trigger Modes14  7.2Computation Steps148.Notification Strategy15  8.1Channels15  8.2Notification Event Registry15  8.3Delivery Architecture169.Error Handling Strategy17  9.1Error Classification17  9.2Global Error Handler17  9.3Logging - Winston + Sentry1810.Deployment & Infrastructure19  10.1Target Platform19  10.2Deployment Architecture19  10.3Environment Configuration20  10.4CI/CD Pipeline20
+
+
+1. Document Overview
+This Functional Specification Document (FSD) is the technical companion to the PeopleOps HRMS PRD. Where the PRD defines what the platform does and why, this document defines how it is built - covering backend architecture, database design, API contracts, authentication flows, approval and payroll engines, notifications, error handling, and deployment.
+
+AttributeDetailProductPeopleOps HRMSBackendNode.js + Express, TypeScriptDatabasePostgreSQL with TypeORMAdmin & Super AdminAngular 17 + PrimeNG (TypeScript)Mobile AppReact Native (TypeScript)AuthPassport.js + JWT (access + refresh tokens)NotificationsEmail (SendGrid) + Push (FCM) + SMS (Twilio)Deployment TargetDigitalOcean / Railway / RenderLoggingWinston (local) + Sentry (remote error tracking)Document Version1.0 - February 2026
+
+
+2. System Architecture
+2.1 High-Level Architecture
+All three client applications communicate exclusively with the single Express API over HTTPS. The API authenticates every request via JWT, enforces RBAC, processes business logic in service modules, and persists data in PostgreSQL. Side effects such as notifications and PDF generation are handled asynchronously via an in-process job queue (Bull + Redis) to keep API response times fast.
+
+┌─────────────────┐   ┌──────────────────────┐   ┌─────────────────────┐
+│  Employee App   │   │   Admin Dashboard     │   │  Super Admin Panel  │
+│  React Native   │   │   Angular + PrimeNG   │   │  Angular + PrimeNG  │
+└────────┬────────┘   └──────────┬───────────┘   └──────────┬──────────┘
+         │                       │                           │
+         └───────────────────────┼───────────────────────────┘
+                                 │  HTTPS / REST (JSON)
+                    ┌────────────▼────────────┐
+                    │   Express API Server    │
+                    │   Node.js + TypeScript  │
+                    │                         │
+                    │  ┌─────────────────┐   │
+                    │  │  Middleware      │   │
+                    │  │  JWT Auth, RBAC  │   │
+                    │  │  Validation      │   │
+                    │  │  Audit Logger    │   │
+                    │  └────────┬────────┘   │
+                    │           │             │
+                    │  ┌────────▼────────┐   │
+                    │  │  Route Modules  │   │
+                    │  │  Controllers    │   │
+                    │  │  Services       │   │
+                    │  │  Repositories   │   │
+                    │  └────────┬────────┘   │
+                    └───────────┼─────────────┘
+           ┌───────────────────┬┴──────────────────────┐
+           │                   │                        │
+  ┌────────▼───────┐  ┌───────▼────────┐   ┌──────────▼────────┐
+  │  PostgreSQL    │  │  Redis + Bull  │   │  AWS S3 / Spaces  │
+  │  Primary DB    │  │  Job Queue     │   │  File Storage     │
+  └────────────────┘  └───────┬────────┘   └───────────────────┘
+                               │
+              ┌────────────────┼────────────────┐
+              │                │                 │
+     ┌────────▼──────┐ ┌───────▼──────┐ ┌──────▼────────┐
+     │  SendGrid     │ │  FCM / Push  │ │  Twilio SMS   │
+     │  Email        │ │  Mobile App  │ │               │
+     └───────────────┘ └──────────────┘ └───────────────┘
+2.2 Request Lifecycle
+Every inbound HTTP request passes through the following ordered layers before a response is returned:
+
+
+01Rate Limiter
+Reject requests exceeding per-IP or per-user rate limits (express-rate-limit). Returns HTTP 429.
+02Body Parser & Helmet
+Parse JSON body, set security HTTP headers (helmet.js), sanitize inputs.
+03JWT Auth Middleware
+Verify Bearer token via Passport.js JWT strategy. Attach decoded user payload (user_id, company_id, role) to req.user. Return 401 if invalid.
+04RBAC Permission Guard
+Check req.user.permissions against the route's required permission code. Return 403 if insufficient.
+05Request Validation
+Validate body/params/query against class-validator DTOs. Return 422 with structured errors array on failure.
+06Controller
+Extract validated inputs, call the appropriate Service method, return shaped response.
+07Service
+Business logic layer. Orchestrates multiple Repository calls, enforces business rules, triggers async jobs.
+08Repository
+TypeORM data access layer. All queries are company_id-scoped. No raw SQL except for complex payroll aggregations.
+09Audit Log Interceptor
+After successful mutation (POST/PATCH/PUT/DELETE), write an audit_log entry asynchronously.
+10Global Error Handler
+Catch all unhandled errors, classify them, log to Winston + Sentry, return standardized error envelope.
+2.3 Module Structure
+src/
+├── main.ts                    # App entry point, bootstraps Express
+├── app.ts                     # Express app setup, global middleware
+├── config/
+│   ├── database.ts            # TypeORM DataSource config
+│   ├── env.ts                 # Typed env vars (dotenv + joi validation)
+│   └── redis.ts               # Bull queue + Redis connection
+├── modules/
+│   ├── auth/                  # Login, register, JWT refresh, logout
+│   ├── users/                 # User CRUD, role assignment
+│   ├── company/               # Company setup, departments, teams, locations
+│   ├── employees/             # Employee lifecycle, documents, salary
+│   ├── attendance/            # Check-in/out, logs, corrections, overtime
+│   ├── leave/                 # Leave types, balances, requests, holidays
+│   ├── payroll/               # Cycles, computation, records, payslips
+│   ├── workflows/             # Approval chain config + execution engine
+│   ├── notifications/         # Event dispatcher, channel adapters
+│   ├── billing/               # Plans, subscriptions, invoices, payments
+│   └── super-admin/           # Tenant mgmt, platform analytics
+├── common/
+│   ├── middleware/
+│   │   ├── auth.middleware.ts  # Passport JWT strategy
+│   │   ├── rbac.middleware.ts  # Permission guard
+│   │   └── audit.middleware.ts # Audit log interceptor
+│   ├── decorators/
+│   │   ├── current-user.ts     # @CurrentUser() param decorator
+│   │   └── require-permission.ts
+│   ├── pipes/
+│   │   └── validation.pipe.ts  # class-validator integration
+│   ├── errors/
+│   │   ├── app-error.ts        # Base AppError class
+│   │   └── error-handler.ts    # Global Express error handler
+│   ├── jobs/
+│   │   ├── queue.ts            # Bull queue definitions
+│   │   └── workers/            # PDF, notification, payroll workers
+│   └── utils/
+│       ├── date.util.ts
+│       ├── salary.util.ts
+│       └── pagination.util.ts
+├── database/
+│   ├── entities/               # TypeORM entity classes (one per table)
+│   ├── migrations/             # Versioned migration files
+│   └── seeds/                  # Dev/test seed data
+└── types/
+    └── express.d.ts            # Augment Express Request with req.user
+
+
+3. Database Schema Overview
+3.1 Entity Relationship Summary
+The schema is organized into seven functional domains. All tenant-specific tables carry a company_id foreign key that links back to the companies table, providing row-level multi-tenancy isolation.
+
+DomainCore TablesRelationshipsIdentity & Authcompanies, users, roles, permissions, role_permissionsusers → companies, users → roles, roles ↔ permissions (M2M)Organizationdepartments, teams, work_locationsdepartments → companies, teams → departments, work_locations → companiesEmployeesemployees, employee_documents, salary_structuresemployees → users, employees → departments/teams, salary_structures → employeesAttendanceattendance_logs, attendance_requests, overtime_records, shiftsattendance_logs → employees, attendance_requests → attendance_logsLeaveleave_types, leave_balances, leave_requests, holidaysleave_balances → employees + leave_types, leave_requests → employeesPayrollpayroll_cycles, payroll_records, payslipspayroll_records → cycles + employees, payslips → payroll_recordsPlatform / Billingplans, subscriptions, invoices, payments, audit_logssubscriptions → companies + plans, invoices → subscriptions
+3.2 Multi-Tenancy Strategy
+PeopleOps uses a shared-schema, row-level multi-tenancy model. All tenant data lives in the same PostgreSQL database and tables. Isolation is enforced by:
+• Every tenant-scoped table has a company_id UUID column with a NOT NULL constraint and a foreign key to companies.id
+• The JWT access token embeds company_id in its payload - the backend always reads company_id from req.user, never from request parameters
+• TypeORM repositories are wrapped in a CompanyRepository base class that automatically appends WHERE company_id = :cid to every query
+• Super Admin users have no company_id in their token and use a separate SuperAdminGuard - they cannot access tenant data except through the controlled impersonation flow
+
+Why shared schema?
+For a 100-1,000 employee target market, shared schema gives the best balance of operational simplicity (single set of migrations, single backup, single connection pool) and resource efficiency. Dedicated schemas or databases per tenant are reserved for Enterprise tier in Phase 2.
+3.3 Key Table Descriptions
+TablePurposeNotable ColumnscompaniesRoot tenant recordindustry_type, employee_limit, timezone, statususersAuthentication identity - one per humancompany_id, role_id, password_hash, is_active, last_login_atrolesNamed permission bundles scoped to a companycompany_id, name - e.g. HR Admin, Manager, EmployeepermissionsGlobal permission codes (platform-defined)code - e.g. attendance:approve, payroll:runrole_permissionsM2M join between roles and permissionsrole_id, permission_idemployeesHR profile - separate from login identityuser_id, employee_code, department_id, manager_id, employment_statussalary_structuresVersioned salary records per employeeemployee_id, basic_salary, gross_salary, effective_fromattendance_logsOne row per employee per working dayattendance_date, check_in, check_out, total_hours, statusattendance_requestsCorrection request linked to a logattendance_id, reason, status, approved_byleave_balancesCurrent balance per employee per leave typeemployee_id, leave_type_id, balanceleave_requestsLeave application with approval statusemployee_id, leave_type_id, start_date, end_date, statusworkflowsApproval chain config per module per companycompany_id, module (leave|attendance|payroll), is_activeapproval_stepsOrdered steps in a workflow, each mapped to a roleworkflow_id, step_order, role_idapproval_logsImmutable record of every approval actionentity_type, entity_id, action, acted_by, acted_atpayroll_cyclesMonthly payroll run containercompany_id, month (YYYY-MM), status (draft|computed|finalized)payroll_recordsComputed salary record per employee per cyclepayroll_cycle_id, employee_id, gross_salary, deductions, net_salaryaudit_logsImmutable log of all mutating API actionscompany_id, user_id, action, entity, created_at
+3.4 Indexing Strategy
+TableIndex ColumnsReasonuserscompany_id, email (UNIQUE)Login lookup - most frequent auth queryemployeescompany_id, user_idResolve employee from authenticated useremployeesdepartment_id, team_idManager dashboard team queriesattendance_logsemployee_id, attendance_dateDaily attendance lookups and monthly payroll aggregationsattendance_logscompany_id, attendance_dateHR admin company-wide attendance reportsleave_requestsemployee_id, statusEmployee leave history and pending approvalsleave_balancesemployee_id, leave_type_id (UNIQUE)Balance check on every leave requestpayroll_recordspayroll_cycle_id, employee_id (UNIQUE)Prevent duplicate payroll records per cycleaudit_logscompany_id, created_atPaginated audit trail queriesapproval_logsentity_type, entity_idFetch approval history for any approvable entity
+
+
+4. API Contracts Summary
+4.1 Global Conventions
+ConventionRuleBase URLhttps://api.peopleops.com/v1Content-Typeapplication/json for all requests and responsesAuthenticationAuthorization: Bearer <access_token> header on all protected routesMulti-tenancycompany_id is always derived from JWT payload - never accepted as a request parameterIDsAll entity IDs are UUIDs (uuid v4)TimestampsISO 8601 UTC - e.g. 2026-02-21T08:30:00ZDatesYYYY-MM-DD - e.g. 2026-02-21PaginationQuery params: page (default 1), limit (default 20). Response meta: { total, page, limit, totalPages }Soft DeletesEmployees and users are never hard-deleted. employment_status = terminated / is_active = false
+4.2 Request & Response Envelope
+Success Response
+{
+  "success": true,
+  "data": { ... },          // Single object or array
+  "meta": {                 // Present on list endpoints only
+    "total": 142,
+    "page": 1,
+    "limit": 20,
+    "totalPages": 8
+  }
+}
+Error Response
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",   // Machine-readable error code
+    "message": "Validation failed",
+    "errors": [                   // Present on 422 only
+      { "field": "start_date", "message": "must be a valid date" }
+    ]
+  }
+}
+HTTP Status Codes
+CodeMeaningWhen Used200 OKSuccessGET, PATCH, PUT returning data201 CreatedResource createdPOST creating a new entity204 No ContentSuccess, no bodyDELETE operations400 Bad RequestMalformed requestMissing required headers, invalid JSON401 UnauthorizedAuth failureMissing, expired, or invalid JWT403 ForbiddenPermission deniedValid JWT but insufficient permissions404 Not FoundResource missingEntity does not exist or belongs to another tenant422 UnprocessableValidation errorclass-validator DTO failure - returns errors array429 Too Many RequestsRate limitedExceeds per-user or per-IP request threshold500 Internal ErrorServer failureUnexpected exception - logged to Sentry
+4.3 Endpoint Registry
+Full endpoint details are covered in the API Design Document. This section provides a module-level summary of all REST resources.
+
+ModuleResourceMethodsAuth ScopeAuth/auth/register, /auth/login, /auth/refresh, /auth/logout, /auth/forgot-password, /auth/reset-passwordPOSTPublic / AuthenticatedUsers/users, /users/:idGET, POST, PATCH, DELETEHR AdminRoles & Permissions/roles, /roles/:id, /roles/:id/permissions, /permissionsGET, POST, PATCH, PUT, DELETEHR AdminCompany & Org/departments, /teams, /work-locations, /shifts, /holidaysGET, POST, PATCH, DELETEHR Admin / Manager (GET)Employees/employees, /employees/:idGET, POST, PATCH, DELETEHR Admin / Manager (GET)Employee - Sub-resources/employees/:id/documents, /employees/:id/salaryGET, POST, DELETEHR AdminAttendance/attendance/check-in, /attendance/check-out, /attendance, /attendance/:idPOST, GET, PATCHEmployee / HR AdminAttendance Corrections/attendance/requests, /attendance/requests/:id/approve, /attendance/requests/:id/rejectGET, POST, PATCHEmployee / ManagerOvertime/overtime, /overtime/:id/approveGET, PATCHHR Admin / ManagerLeave Types & Balances/leave-types, /leave-balances, /leave-balances/accrueGET, POST, PATCH, DELETEHR Admin / Employee (GET own)Leave Requests/leave-requests, /leave-requests/:id, /leave-requests/:id/approve, /leave-requests/:id/rejectGET, POST, PATCH, DELETEEmployee / ManagerPayroll/payroll-cycles, /payroll-cycles/:id/run, /payroll-cycles/:id/finalize, /payroll-records/:id, /payroll-records/:id/payslipGET, POST, PATCHHR Admin / Employee (GET own payslip)Workflows/workflows, /workflows/:id, /approval-steps, /approval-logsGET, POST, PATCH, DELETEHR AdminBilling/plans, /subscriptions, /invoices, /paymentsGET, POSTSuper Admin / HR Admin (GET own)Super Admin/super-admin/companies, /super-admin/analytics, /super-admin/impersonateGET, POST, PATCHSuper Admin only
+
+
+5. Security & Auth Flow
+5.1 Authentication Strategy
+Authentication is implemented using Passport.js with two strategies: a Local Strategy for username/password login and a JWT Strategy for all subsequent authenticated requests. Passwords are hashed with bcrypt (cost factor 12). All auth endpoints are rate-limited to prevent brute-force attacks.
+
+5.2 JWT Token Flow
+
+
+01User Submits Credentials
+POST /auth/login with { email, password }. Local Strategy validates credentials against bcrypt hash.
+02Tokens Issued
+On success, server generates two tokens: Access Token (JWT, 15 min expiry, signed with ACCESS_TOKEN_SECRET) and Refresh Token (opaque UUID, 7 days, stored in refresh_tokens table).
+03Token Storage
+Access Token returned in response body. Refresh Token set as HttpOnly, Secure, SameSite=Strict cookie - not accessible to JavaScript.
+04Authenticated Request
+Client sends Access Token as Authorization: Bearer <token>. JWT Strategy verifies signature and expiry, attaches { user_id, company_id, role, permissions } to req.user.
+05Token Refresh
+When Access Token expires (401), client calls POST /auth/refresh. Server validates Refresh Token from cookie, issues new Access Token. Refresh Token is rotated (old one invalidated).
+06Logout
+POST /auth/logout deletes the Refresh Token record from DB and clears the cookie. All subsequent refresh attempts fail.
+07Password Reset
+POST /auth/forgot-password issues a time-limited (1 hour) signed reset token sent via email. POST /auth/reset-password validates token and updates password hash.
+5.3 Role-Based Access Control (RBAC)
+After JWT verification, the RBAC middleware resolves the user's permissions array from the role_permissions join table (cached in Redis with a 5-minute TTL per user). Route handlers declare their required permission using a decorator. The guard checks whether the resolved permissions array includes the required code.
+
+// Route declaration example (Express + TypeScript)
+router.post(
+  '/payroll-cycles/:id/run',
+  requirePermission('payroll:run'),   // Guard checks req.user.permissions
+  payrollController.runCycle
+);
+
+// JWT Payload shape
+interface JwtPayload {
+  user_id:    string;   // UUID
+  company_id: string;   // UUID - always present for tenant users
+  role:       string;   // Role name e.g. 'HR Admin'
+  permissions: string[]; // ['payroll:run', 'attendance:approve', ...]
+  iat: number;
+  exp: number;
+}
+5.4 Super Admin Isolation
+• Super Admin tokens contain no company_id and use a separate SuperAdminJwtStrategy with a different secret (SUPER_ADMIN_TOKEN_SECRET)
+• Super Admin routes are mounted under /super-admin and protected by a dedicated SuperAdminGuard that rejects any token containing a company_id
+• User impersonation (accessing a tenant's dashboard for support) generates a short-lived (30 min), non-renewable scoped token containing the target company_id - every action taken with it is tagged impersonated: true in audit_logs
+• Super Admin login requires TOTP-based MFA (authenticator app) in addition to password
+
+
+
+6. Approval Workflow Engine
+6.1 Dynamic Multi-Level Approval
+Each company can configure a custom approval chain per module (leave, attendance corrections, etc.) via the workflows and approval_steps tables. A workflow has ordered steps, each mapped to a role. When an approvable entity is created, the engine determines the current pending step and routes the notification to all users holding that role within the company.
+
+TablePurposeworkflowsDefines that a company has a workflow for a given module (e.g. leave). Can be activated or deactivated.approval_stepsEach row is one step in a workflow. step_order (1, 2, 3...) determines sequence. role_id identifies who must act at that step.approval_logsImmutable append-only record of every approve/reject action with timestamp and actor.
+6.2 Approval Flow Execution
+
+01Entity Created
+Employee submits leave request. Status set to pending. WorkflowService.initiate(entity_type, entity_id) called.
+02Resolve Current Step
+Engine queries approval_steps WHERE workflow_id = ? ORDER BY step_order ASC and finds the first step with no corresponding approval_log entry.
+03Notify Approvers
+All users in the company holding the required role_id for that step are notified via email, push, and SMS.
+04Approver Acts
+Approver calls PATCH /leave-requests/:id/approve or /reject. RBAC guard verifies they hold the correct role for the current step.
+05Log & Advance
+Approval action is written to approval_logs. Engine checks if more steps remain.
+06Final Approval
+If no more steps remain, entity status is set to approved. Leave balance is deducted. Employee notified.
+07Rejection at Any Step
+If any approver rejects, entity status is immediately set to rejected. No further steps are processed. Employee notified with reason.
+
+
+7. Payroll Computation Flow
+7.1 Trigger Modes
+ModeHow It WorksManualHR Admin clicks Run Payroll in the Admin Dashboard. Calls POST /payroll-cycles/:id/run. Immediate synchronous response with job queued.Auto-TriggeredA Bull cron job fires on the configured date (e.g. 25th of each month). Creates a payroll_cycle record and enqueues the computation job automatically. HR Admin still must review and finalize.Re-RunPayroll can be re-run any number of times before the cycle is finalized. Re-running overwrites all payroll_records for that cycle. Once finalized, the cycle is locked - no further changes allowed.
+7.2 Computation Steps
+The PayrollWorker (Bull job processor) executes the following steps for each active employee in the company:
+
+
+01Fetch Employees
+Query all employees WHERE company_id = ? AND employment_status IN (active, probation, notice). Exclude terminated employees.
+02Resolve Salary Structure
+For each employee, fetch the salary_structures record with the latest effective_from date that is <= the first day of the payroll month.
+03Calculate Working Days
+Derive total working days in the cycle month by subtracting weekends and any holidays from the holidays table for that company.
+04Calculate Present Days
+Count attendance_logs WHERE employee_id = ? AND attendance_date BETWEEN cycle_start AND cycle_end AND status IN (present, half-day).
+05Attendance Deduction
+If present_days < working_days: deduction = (absent_days / working_days) * basic_salary. Half-days count as 0.5.
+06Leave Deduction
+Fetch approved leave_requests in the cycle period. For each unpaid leave day (balance already exhausted), add to deductions.
+07Overtime Addition
+Sum approved overtime_records.hours for the employee in the cycle period. overtime_pay = hours * (basic_salary / (working_days * 8)).
+08Compute Net Salary
+net_salary = gross_salary - attendance_deduction - leave_deduction - other_deductions + overtime_pay.
+09Persist Record
+Upsert payroll_records (payroll_cycle_id, employee_id) with computed values. Mark cycle status = computed.
+10Queue Payslip Jobs
+For each record, enqueue a PdfWorker job to generate the payslip PDF, upload to S3/Spaces, and store the URL in payslips table.
+
+
+8. Notification Strategy
+8.1 Channels
+ChannelProviderUse CasesNotesEmailSendGrid (or AWS SES)Payslip ready, leave approval/rejection, password reset, new account invite, payroll finalizationHTML templates per event. Company logo and branding injected.Push NotificationFirebase Cloud Messaging (FCM)Real-time alerts: check-in reminder, leave approval/rejection, attendance correction outcome, payslip availableMobile App registers FCM token on login. Token stored in users table (fcm_token column).SMSTwilioCritical alerts only: OTP for password reset, MFA codes for Super Admin, payslip availability (configurable)SMS is optional per company. Configurable in company settings. Cost-controlled via event whitelist.
+8.2 Notification Event Registry
+EventEmailPushSMSRecipientNew user account createdYesNoNoNew userPassword reset requestedYesNoYes (OTP)Requesting userLeave request submittedYesYesNoApprovers at current stepLeave approvedYesYesNoEmployeeLeave rejectedYesYesNoEmployeeAttendance correction submittedNoYesNoManager / ApproverAttendance correction approvedNoYesNoEmployeePayroll cycle computedYesYesNoHR AdminPayslip readyYesYesYes (optional)EmployeeSubscription invoice generatedYesNoNoCompany AdminSubscription payment failedYesNoYesCompany AdminSuper Admin MFA codeNoNoYesSuper Admin
+8.3 Delivery Architecture
+Notifications are never sent synchronously in the HTTP request cycle. All notification dispatch is handled by Bull job workers to ensure API response times are unaffected by third-party provider latency or failures.
+
+// Notification dispatch flow
+1. API handler completes business logic (e.g. leave approved)
+2. NotificationService.dispatch(event, payload) is called
+3. NotificationService enqueues a job to the 'notifications' Bull queue
+4. Response is returned to the client immediately (no blocking)
+5. NotificationWorker picks up the job asynchronously
+6. Worker resolves recipients, renders templates, calls provider APIs
+7. Delivery result (success/failure) is logged
+8. Failed jobs are retried up to 3 times with exponential backoff
+9. Permanently failed jobs move to the dead-letter queue for inspection
+
+
+9. Error Handling Strategy
+9.1 Error Classification
+Error ClassHTTP CodeExamplesLogged to Sentry?ValidationError422DTO validation failure, missing required fieldsNo - expectedAuthenticationError401Invalid JWT, expired token, wrong credentialsNo - expectedAuthorizationError403Insufficient permissions for the requested actionNo - expectedNotFoundError404Entity does not exist or belongs to another tenantNo - expectedConflictError409Duplicate employee_code, email already registeredNo - expectedBusinessRuleError400Payroll cycle already finalized, leave balance exceededNo - expectedExternalServiceError502SendGrid, FCM, Twilio provider failureYes - warningDatabaseError500Query failure, connection timeout, constraint violationYes - errorUnhandledError500Any uncaught exception not matching above classesYes - critical
+9.2 Global Error Handler
+A single Express error-handling middleware (4-argument middleware) is registered last in the middleware chain. All thrown errors - whether explicitly thrown AppError subclasses or unexpected runtime errors - are caught here, classified, formatted, and returned as the standard error envelope.
+
+// src/common/errors/error-handler.ts
+export function globalErrorHandler(
+  err: Error,
+  req: Request,
+  res: Response,
+  next: NextFunction
+): void {
+  const isAppError = err instanceof AppError;
+
+  const statusCode = isAppError ? err.statusCode : 500;
+  const code       = isAppError ? err.code : 'INTERNAL_ERROR';
+  const message    = isAppError ? err.message : 'An unexpected error occurred';
+
+  // Log to Winston always
+  logger.error({ code, message, stack: err.stack, path: req.path });
+
+  // Send to Sentry for 5xx errors
+  if (statusCode >= 500) Sentry.captureException(err);
+
+  res.status(statusCode).json({
+    success: false,
+    error: { code, message, ...(err instanceof ValidationError && { errors: err.errors }) }
+  });
+}
+9.3 Logging - Winston + Sentry
+ToolPurposeConfigurationWinstonStructured local logging - all log levels written to console (JSON) and rotating log filesLevels: error, warn, info, http, debug. Log files rotated daily, retained for 30 days. Log format: { timestamp, level, message, meta }.SentryRemote error tracking and alerting for 4xx/5xx errorsSDK initialized at app startup. DSN stored in env var. Captures unhandled exceptions and promise rejections. Grouped by error fingerprint. Alerts via email/Slack for new issues.MorganHTTP request logging middlewareLogs: method, URL, status, response time, user-agent. Feeds into Winston http level.Bull BoardVisual monitoring dashboard for job queuesMounted at /admin/queues (internal only). Shows pending, active, failed, completed jobs per queue.
+
+
+10. Deployment & Infrastructure
+10.1 Target Platform
+The initial deployment targets DigitalOcean, Railway, or Render - all of which offer managed PostgreSQL, Redis, and container hosting with minimal DevOps overhead. The architecture is designed to be cloud-agnostic: all configuration is environment-variable-driven and all services are containerized with Docker, so migration to AWS, GCP, or Azure in Phase 2 requires no application code changes.
+
+10.2 Deployment Architecture
+ServiceHostingNotesExpress APIDocker container - DigitalOcean App Platform / Railway / RenderHorizontal scaling via multiple container replicas behind a load balancer. Stateless - no local session state.Angular Admin DashboardStatic site hosting - DigitalOcean Spaces CDN / Netlify / VercelBuilt to static files with ng build --configuration production. Served via CDN. Environment config injected at build time.Angular Super AdminStatic site hosting - separate deployment from Admin DashboardDeployed to a separate domain (admin-internal.peopleops.com). IP allowlist enforced at CDN/proxy level.React Native AppApp Store (iOS) + Google Play Store (Android)Built with Expo EAS Build. OTA updates via Expo Updates for JS bundle changes without app store review.PostgreSQLManaged database - DigitalOcean Managed PostgreSQL / Railway PostgreSQLAutomated daily backups. Point-in-time recovery. Connection pooling via PgBouncer.RedisManaged Redis - DigitalOcean Managed Redis / Railway Redis / UpstashUsed by Bull job queues. Also used for JWT permission cache (5 min TTL) and rate limiter state.File StorageDigitalOcean Spaces (S3-compatible) or AWS S3Payslip PDFs and employee documents. Private bucket - all access via signed URLs (15 min expiry).
+10.3 Environment Configuration
+All environment-specific values are injected via environment variables. No secrets are committed to source control. A Joi-based env validation schema at startup throws a descriptive error if any required variable is missing.
+
+# .env.example - all variables required unless marked optional
+
+# Server
+NODE_ENV=production
+PORT=3000
+API_BASE_URL=https://api.peopleops.com
+
+# Database
+DATABASE_URL=postgresql://user:pass@host:5432/peopleops
+DB_POOL_SIZE=10
+
+# Redis
+REDIS_URL=redis://default:pass@host:6379
+
+# JWT
+ACCESS_TOKEN_SECRET=<256-bit-random>
+ACCESS_TOKEN_EXPIRY=15m
+REFRESH_TOKEN_EXPIRY=7d
+SUPER_ADMIN_TOKEN_SECRET=<separate-256-bit-random>
+
+# File Storage (S3 / DigitalOcean Spaces)
+STORAGE_ENDPOINT=https://nyc3.digitaloceanspaces.com
+STORAGE_BUCKET=peopleops-files
+STORAGE_ACCESS_KEY=<key>
+STORAGE_SECRET_KEY=<secret>
+
+# Notifications
+SENDGRID_API_KEY=SG.xxx
+SENDGRID_FROM_EMAIL=noreply@peopleops.com
+FCM_SERVER_KEY=xxx
+TWILIO_ACCOUNT_SID=ACxxx
+TWILIO_AUTH_TOKEN=xxx
+TWILIO_FROM_NUMBER=+1xxxxxxxxxx
+
+# Monitoring
+SENTRY_DSN=https://xxx@sentry.io/xxx
+
+# Payroll Cron (optional - defaults to 25th of month)
+PAYROLL_CRON_DAY=25      # optional
+10.4 CI/CD Pipeline
+StageToolActionCode PushGitHub / GitLabDeveloper pushes to feature branch. PR raised against main.Lint & Type CheckGitHub Actionstsc --noEmit + ESLint runs on every PR. Blocks merge on failure.Unit & Integration TestsGitHub Actions + JestJest runs unit tests (services, utils) and integration tests (API endpoints against test DB). Coverage threshold enforced.BuildGitHub Actions - DockerDocker image built and tagged with commit SHA. Pushed to container registry (DigitalOcean Container Registry / GitHub Packages).Database MigrationsGitHub ActionsOn merge to main: TypeORM migrations run against the target environment DB before new containers are deployed.Deploy - APIDigitalOcean / Railway / RenderRolling deployment - new containers spun up before old ones are terminated. Zero-downtime if multiple replicas.Deploy - Web AppsVercel / Netlify / DO SpacesAngular apps rebuilt and redeployed on merge to main. CDN cache invalidated automatically.Deploy - MobileExpo EASJS bundle OTA update pushed for minor changes. Full app store build triggered manually for native changes.Post-Deploy Health CheckGitHub ActionsSmoke test hits GET /health endpoint. Triggers rollback on failure.
+PeopleOps HRMS  |  Functional Specification Document  |  Page  of 
+

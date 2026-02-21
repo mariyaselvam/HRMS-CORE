@@ -27,3 +27,5 @@ logs/
 
 # Databases
 *.sqlite
+
+/src/generated/prisma
