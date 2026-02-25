@@ -1,0 +1,133 @@
+import prisma from '../../common/utils/prisma';
+import {
+    SalaryStructureInput,
+    GeneratePayrollInput,
+    UpdatePayrollRecordInput
+} from './payroll.validator';
+
+export class PayrollRepository {
+    // --- Salary Structure ---
+    async upsertSalaryStructure(data: SalaryStructureInput) {
+        // Basic multi-tenant check happens at service level, here we just execute
+        const grossSalary = data.basicSalary + data.hra + data.transportAllowance + data.otherAllowances;
+
+        return prisma.salaryStructure.create({
+            data: {
+                employeeId: data.employeeId,
+                basicSalary: data.basicSalary,
+                hra: data.hra,
+                transportAllowance: data.transportAllowance,
+                otherAllowances: data.otherAllowances,
+                grossSalary: grossSalary,
+                effectiveFrom: new Date(data.effectiveFrom),
+                isActive: true
+            }
+        });
+    }
+
+    async getActiveSalary(employeeId: string) {
+        return prisma.salaryStructure.findFirst({
+            where: { employeeId, isActive: true },
+            orderBy: { effectiveFrom: 'desc' }
+        });
+    }
+
+    // --- Payroll Cycles ---
+    async findCycle(companyId: string, month: Date) {
+        return prisma.payrollCycle.findFirst({
+            where: { companyId, month }
+        });
+    }
+
+    async createCycle(companyId: string, month: Date, adminUserId: string) {
+        return prisma.payrollCycle.create({
+            data: {
+                companyId,
+                month,
+                status: 'draft',
+                triggeredBy: adminUserId
+            }
+        });
+    }
+
+    // --- Attendance/Leave Summary for Calculation ---
+    async getEmployeeWorkSummary(employeeId: string, startDate: Date, endDate: Date) {
+        const [attendanceCount, leaveCount] = await Promise.all([
+            prisma.attendanceLog.count({
+                where: {
+                    employeeId,
+                    attendanceDate: { gte: startDate, lte: endDate },
+                    status: 'present'
+                }
+            }),
+            prisma.leaveRequest.aggregate({
+                where: {
+                    employeeId,
+                    status: 'approved',
+                    startDate: { gte: startDate },
+                    endDate: { lte: endDate }
+                },
+                _sum: { totalDays: true }
+            })
+        ]);
+
+        return {
+            presentDays: attendanceCount,
+            approvedLeaveDays: Number(leaveCount._sum.totalDays || 0)
+        };
+    }
+
+    // --- Payroll Records ---
+    async createPayrollRecord(data: any) {
+        return prisma.payrollRecord.create({
+            data: data
+        });
+    }
+
+    async getPayrollRecords(cycleId: string) {
+        return prisma.payrollRecord.findMany({
+            where: { payrollCycleId: cycleId },
+            include: {
+                employee: {
+                    select: {
+                        employeeCode: true,
+                        user: { select: { email: true } }
+                    }
+                }
+            }
+        });
+    }
+
+    async updateRecord(id: string, data: UpdatePayrollRecordInput) {
+        const record = await prisma.payrollRecord.findUnique({ where: { id } });
+        if (!record) return null;
+
+        // Recalculate net salary if other deductions changed
+        const otherDeductions = data.otherDeductions ?? Number(record.otherDeductions);
+        const bonus = data.bonus ?? 0; // Future enhancement
+
+        // Simplistic recalculation
+        const netSalary = Number(record.grossSalary) -
+            Number(record.attendanceDeduction) -
+            Number(record.leaveDeduction) -
+            otherDeductions + bonus;
+
+        return prisma.payrollRecord.update({
+            where: { id },
+            data: {
+                otherDeductions,
+                netSalary: Number(netSalary.toFixed(2))
+            }
+        });
+    }
+
+    async finalizeCycle(cycleId: string) {
+        return prisma.payrollCycle.update({
+            where: { id: cycleId },
+            data: {
+                status: 'finalized',
+                finalizedAt: new Date()
+            }
+        });
+    }
+}
