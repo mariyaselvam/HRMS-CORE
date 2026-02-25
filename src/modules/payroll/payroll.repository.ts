@@ -102,15 +102,17 @@ export class PayrollRepository {
         const record = await prisma.payrollRecord.findUnique({ where: { id } });
         if (!record) return null;
 
-        // Recalculate net salary if other deductions changed
+        // Recalculate net salary including all deductions
         const otherDeductions = data.otherDeductions ?? Number(record.otherDeductions);
-        const bonus = data.bonus ?? 0; // Future enhancement
 
-        // Simplistic recalculation
         const netSalary = Number(record.grossSalary) -
             Number(record.attendanceDeduction) -
             Number(record.leaveDeduction) -
-            otherDeductions + bonus;
+            Number(record.pfDeduction) -
+            Number(record.esiDeduction) -
+            Number(record.ptDeduction) -
+            Number(record.incomeTax) -
+            otherDeductions;
 
         return prisma.payrollRecord.update({
             where: { id },

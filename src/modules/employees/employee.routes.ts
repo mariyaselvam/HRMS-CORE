@@ -1,7 +1,13 @@
 import { Router } from 'express';
 import { EmployeeController } from './employee.controller';
 import { authenticate } from '../../common/middleware/auth.middleware';
-import { validateOnboard, validateUpdateEmployee } from './employee.validator';
+import {
+    validateOnboard,
+    validateUpdateEmployee,
+    validateOnboardStep2,
+    validateOnboardStep3,
+    validateOnboardStep4
+} from './employee.validator';
 import { DocumentController } from './document.controller';
 import { upload } from '../../common/middleware/upload.middleware';
 import { validateUploadDocument } from './document.validator';
@@ -13,11 +19,19 @@ const docController = new DocumentController();
 // All employee routes require authentication
 router.use(authenticate);
 
-// Employee Profiles
+// Core Onboarding (Step 1)
 router.post('/onboard', validateOnboard, controller.onboard);
+
+// Progressive Onboarding (Steps 2-4)
+router.patch('/:id/personal', validateOnboardStep2, controller.savePersonal);
+router.patch('/:id/job', validateOnboardStep3, controller.saveJob);
+router.patch('/:id/statutory', validateOnboardStep4, controller.saveStatutory);
+
+// Management
 router.get('/', controller.list);
 router.get('/:id', controller.detail);
 router.patch('/:id', validateUpdateEmployee, controller.update);
+router.post('/:id/finalize', controller.finalize);
 
 // Employee Documents
 router.post('/documents/upload', upload.single('file'), validateUploadDocument, docController.upload);
