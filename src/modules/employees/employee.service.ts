@@ -1,6 +1,12 @@
 import bcrypt from 'bcrypt';
 import { EmployeeRepository } from './employee.repository';
-import { OnboardEmployeeInput, UpdateEmployeeInput } from './employee.validator';
+import {
+    OnboardEmployeeInput,
+    UpdateEmployeeInput,
+    OnboardStep2Input,
+    OnboardStep3Input,
+    OnboardStep4Input
+} from './employee.validator';
 import { AppError, NotFoundError } from '../../common/errors/AppError';
 
 export class EmployeeService {
@@ -30,6 +36,21 @@ export class EmployeeService {
         return this.employeeRepository.createEmployee(companyId, data, hashedPassword);
     }
 
+    async savePersonalDetails(employeeId: string, companyId: string, data: OnboardStep2Input) {
+        await this.getEmployeeDetail(employeeId, companyId);
+        return this.employeeRepository.upsertPersonalDetails(employeeId, data);
+    }
+
+    async saveJobDetails(employeeId: string, companyId: string, data: OnboardStep3Input) {
+        await this.getEmployeeDetail(employeeId, companyId);
+        return this.employeeRepository.upsertJobDetails(employeeId, data);
+    }
+
+    async saveStatutoryDetails(employeeId: string, companyId: string, data: OnboardStep4Input) {
+        await this.getEmployeeDetail(employeeId, companyId);
+        return this.employeeRepository.upsertStatutoryDetails(employeeId, data);
+    }
+
     async getAllEmployees(companyId: string) {
         return this.employeeRepository.listEmployees(companyId);
     }
@@ -42,6 +63,24 @@ export class EmployeeService {
         return employee;
     }
 
+    async finalizeOnboarding(id: string, companyId: string) {
+        const employee = await this.getEmployeeDetail(id, companyId);
+
+        // Verification logic
+        const missing = [];
+        if (!employee.personalDetails) missing.push('Personal Details');
+        if (!employee.bankDetails) missing.push('Bank Details');
+        if (!employee.statutoryDetails?.pan) missing.push('PAN Number');
+
+        if (missing.length > 0) {
+            throw new AppError(`Cannot finalize. Missing: ${missing.join(', ')}`, 400);
+        }
+
+        return this.employeeRepository.updateEmployee(id, companyId, {
+            status: 'active'
+        });
+    }
+
     async updateEmployeeProfile(id: string, companyId: string, data: UpdateEmployeeInput) {
         // Verify existence
         await this.getEmployeeDetail(id, companyId);
@@ -49,3 +88,4 @@ export class EmployeeService {
         return this.employeeRepository.updateEmployee(id, companyId, data);
     }
 }
+

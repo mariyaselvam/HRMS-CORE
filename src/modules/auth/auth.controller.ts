@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { AuthService } from './auth.service';
-import { RegisterCompanyDto, LoginDto } from './auth.dto';
+import { RegisterCompanyInput, LoginInput } from './auth.validator';
 
 export class AuthController {
     private authService: AuthService;
@@ -10,7 +10,7 @@ export class AuthController {
     }
 
     register = async (req: Request, res: Response) => {
-        const data: RegisterCompanyDto = req.body;
+        const data: RegisterCompanyInput = req.body;
         const result = await this.authService.registerCompany(data);
 
         res.status(201).json({
@@ -20,7 +20,7 @@ export class AuthController {
     };
 
     login = async (req: Request, res: Response) => {
-        const data: LoginDto = req.body;
+        const data: LoginInput = req.body;
         const result = await this.authService.login(data);
 
         res.json({

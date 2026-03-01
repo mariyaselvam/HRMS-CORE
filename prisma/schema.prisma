@@ -165,18 +165,27 @@ model EmployeeShift {
 }
 
 model Employee {
-  id               String              @id @default(uuid()) @db.Uuid
-  companyId        String              @map("company_id") @db.Uuid
-  userId           String              @unique @map("user_id") @db.Uuid
-  employeeCode     String              @map("employee_code")
-  departmentId     String              @map("department_id") @db.Uuid
-  teamId           String?             @map("team_id") @db.Uuid
-  managerId        String?             @map("manager_id") @db.Uuid
-  dateOfJoining    DateTime            @map("date_of_joining") @db.Date
-  employmentStatus String              @default("active") @map("employment_status")
-  dateOfLeaving    DateTime?           @map("date_of_leaving") @db.Date
-  createdAt        DateTime            @default(now()) @map("created_at")
-  updatedAt        DateTime            @updatedAt @map("updated_at")
+  id                String    @id @default(uuid()) @db.Uuid
+  companyId         String    @map("company_id") @db.Uuid
+  userId            String    @unique @map("user_id") @db.Uuid
+  employeeCode      String    @map("employee_code")
+  departmentId      String    @map("department_id") @db.Uuid
+  teamId            String?   @map("team_id") @db.Uuid
+  managerId         String?   @map("manager_id") @db.Uuid
+  dateOfJoining     DateTime  @map("date_of_joining") @db.Date
+  employmentStatus  String    @default("active") @map("employment_status")
+  dateOfLeaving     DateTime? @map("date_of_leaving") @db.Date
+  onboardingStep    Int       @default(1) @map("onboarding_step")
+  profileCompletion Int       @default(0) @map("profile_completion")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  // Modular Details
+  personalDetails  EmployeePersonalDetail?
+  jobDetails       EmployeeJobDetail?
+  bankDetails      EmployeeBankDetail?
+  statutoryDetails EmployeeStatutoryDetail?
+
   attendanceLogs   AttendanceLog[]
   attendanceReqs   AttendanceRequest[]
   managedDepts     Department[]        @relation("DepartmentManager")
@@ -198,6 +207,63 @@ model Employee {
   @@map("employees")
 }
 
+model EmployeePersonalDetail {
+  id             String    @id @default(uuid()) @db.Uuid
+  employeeId     String    @unique @map("employee_id") @db.Uuid
+  firstName      String    @map("first_name")
+  lastName       String    @map("last_name")
+  mobile         String?
+  gender         String?
+  dob            DateTime? @db.Date
+  maritalStatus  String?   @map("marital_status")
+  currentAddress String?   @map("current_address")
+  permAddress    String?   @map("perm_address")
+  employee       Employee  @relation(fields: [employeeId], references: [id])
+
+  @@map("employee_personal_details")
+}
+
+model EmployeeJobDetail {
+  id               String    @id @default(uuid()) @db.Uuid
+  employeeId       String    @unique @map("employee_id") @db.Uuid
+  designation      String?
+  employmentType   String?   @map("employment_type") // Full-time, Contract, Intern
+  workLocationType String?   @map("work_location_type") // Office, Remote, Hybrid
+  probationPeriod  Int?      @map("probation_period") // in months
+  confirmationDate DateTime? @map("confirmation_date") @db.Date
+  noticePeriod     Int?      @map("notice_period") // in days
+  employee         Employee  @relation(fields: [employeeId], references: [id])
+
+  @@map("employee_job_details")
+}
+
+model EmployeeBankDetail {
+  id            String   @id @default(uuid()) @db.Uuid
+  employeeId    String   @unique @map("employee_id") @db.Uuid
+  accountNumber String?  @map("account_number")
+  ifscCode      String?  @map("ifsc_code")
+  bankName      String?  @map("bank_name")
+  branchName    String?  @map("branch_name")
+  employee      Employee @relation(fields: [employeeId], references: [id])
+
+  @@map("employee_bank_details")
+}
+
+model EmployeeStatutoryDetail {
+  id            String   @id @default(uuid()) @db.Uuid
+  employeeId    String   @unique @map("employee_id") @db.Uuid
+  pan           String?  @unique
+  uan           String?  @unique // Universal Account Number (PF)
+  pfApplicable  Boolean  @default(false) @map("pf_applicable")
+  esiNumber     String?  @unique @map("esi_number")
+  esiApplicable Boolean  @default(false) @map("esi_applicable")
+  ptState       String?  @map("pt_state") // Professional Tax state
+  taxRegime     String?  @default("new") @map("tax_regime") // old or new
+  employee      Employee @relation(fields: [employeeId], references: [id])
+
+  @@map("employee_statutory_details")
+}
+
 model EmployeeDocument {
   id           String    @id @default(uuid()) @db.Uuid
   employeeId   String    @map("employee_id") @db.Uuid
@@ -214,18 +280,23 @@ model EmployeeDocument {
 }
 
 model SalaryStructure {
-  id                 String    @id @default(uuid()) @db.Uuid
-  employeeId         String    @map("employee_id") @db.Uuid
-  basicSalary        Decimal   @map("basic_salary")
-  hra                Decimal   @default(0)
-  transportAllowance Decimal   @default(0) @map("transport_allowance")
-  otherAllowances    Decimal   @default(0) @map("other_allowances")
-  grossSalary        Decimal   @map("gross_salary")
-  effectiveFrom      DateTime  @map("effective_from") @db.Date
-  effectiveTo        DateTime? @map("effective_to") @db.Date
-  isActive           Boolean   @default(true) @map("is_active")
-  createdAt          DateTime  @default(now()) @map("created_at")
-  employee           Employee  @relation(fields: [employeeId], references: [id])
+  id                 String  @id @default(uuid()) @db.Uuid
+  employeeId         String  @map("employee_id") @db.Uuid
+  basicSalary        Decimal @map("basic_salary")
+  hra                Decimal @default(0)
+  transportAllowance Decimal @default(0) @map("transport_allowance")
+  otherAllowances    Decimal @default(0) @map("other_allowances")
+  grossSalary        Decimal @map("gross_salary")
+
+  // Statutory Components
+  pfContribution  Decimal @default(0) @map("pf_contribution")
+  esiContribution Decimal @default(0) @map("esi_contribution")
+
+  effectiveFrom DateTime  @map("effective_from") @db.Date
+  effectiveTo   DateTime? @map("effective_to") @db.Date
+  isActive      Boolean   @default(true) @map("is_active")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  employee      Employee  @relation(fields: [employeeId], references: [id])
 
   @@map("salary_structures")
 }
@@ -367,26 +438,35 @@ model PayrollCycle {
 }
 
 model PayrollRecord {
-  id                  String       @id @default(uuid()) @db.Uuid
-  payrollCycleId      String       @map("payroll_cycle_id") @db.Uuid
-  employeeId          String       @map("employee_id") @db.Uuid
-  basicSalary         Decimal      @map("basic_salary")
-  hra                 Decimal      @default(0)
-  transportAllowance  Decimal      @default(0) @map("transport_allowance")
-  otherAllowances     Decimal      @default(0) @map("other_allowances")
-  grossSalary         Decimal      @map("gross_salary")
-  attendanceDeduction Decimal      @default(0) @map("attendance_deduction")
-  leaveDeduction      Decimal      @default(0) @map("leave_deduction")
-  otherDeductions     Decimal      @default(0) @map("other_deductions")
-  overtimePay         Decimal      @default(0) @map("overtime_pay")
-  netSalary           Decimal      @map("net_salary")
-  workingDays         Int          @map("working_days")
-  presentDays         Int          @map("present_days")
-  createdAt           DateTime     @default(now()) @map("created_at")
-  updatedAt           DateTime     @updatedAt @map("updated_at")
-  employee            Employee     @relation(fields: [employeeId], references: [id])
-  payrollCycle        PayrollCycle @relation(fields: [payrollCycleId], references: [id])
-  payslip             Payslip?
+  id                 String  @id @default(uuid()) @db.Uuid
+  payrollCycleId     String  @map("payroll_cycle_id") @db.Uuid
+  employeeId         String  @map("employee_id") @db.Uuid
+  basicSalary        Decimal @map("basic_salary")
+  hra                Decimal @default(0)
+  transportAllowance Decimal @default(0) @map("transport_allowance")
+  otherAllowances    Decimal @default(0) @map("other_allowances")
+  grossSalary        Decimal @map("gross_salary")
+
+  // Deductions
+  attendanceDeduction Decimal @default(0) @map("attendance_deduction")
+  leaveDeduction      Decimal @default(0) @map("leave_deduction")
+
+  // Statutory Deductions
+  pfDeduction  Decimal @default(0) @map("pf_deduction")
+  esiDeduction Decimal @default(0) @map("esi_deduction")
+  ptDeduction  Decimal @default(0) @map("pt_deduction")
+  incomeTax    Decimal @default(0) @map("income_tax")
+
+  otherDeductions Decimal      @default(0) @map("other_deductions")
+  overtimePay     Decimal      @default(0) @map("overtime_pay")
+  netSalary       Decimal      @map("net_salary")
+  workingDays     Int          @map("working_days")
+  presentDays     Int          @map("present_days")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  employee        Employee     @relation(fields: [employeeId], references: [id])
+  payrollCycle    PayrollCycle @relation(fields: [payrollCycleId], references: [id])
+  payslip         Payslip?
 
   @@unique([payrollCycleId, employeeId])
   @@map("payroll_records")

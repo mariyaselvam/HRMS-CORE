@@ -44,9 +44,16 @@ export class PayrollService {
         // 2. Create Cycle
         const cycle = await this.repository.createCycle(companyId, monthDate, adminUserId);
 
-        // 3. Get all active employees
+        // 3. Get all active employees with their details
         const employees = await prisma.employee.findMany({
-            where: { companyId, employmentStatus: 'active' }
+            where: {
+                companyId,
+                employmentStatus: 'active',
+                profileCompletion: { gte: 70 } // Only pick reasonably completed profiles
+            },
+            include: {
+                statutoryDetails: true
+            }
         });
 
         const monthStart = new Date(monthDate);
@@ -85,13 +92,43 @@ export class PayrollService {
 
             const summary = await this.repository.getEmployeeWorkSummary(emp.id, monthStart, monthEnd);
 
-            // Basic Calculation Logic (Can be customized)
-            // Deduction = (Gross / TotalDays) * (TotalDays - (Present + ApprovedLeaves))
-            const dailyRate = Number(salary.grossSalary) / totalWorkingDays;
-            const daysAbsent = totalWorkingDays - (summary.presentDays + summary.approvedLeaveDays);
-            const attendanceDeduction = daysAbsent > 0 ? dailyRate * daysAbsent : 0;
+            // --- LOP Calculation ---
+            // Deduction = (Gross / TotalWorkingDays) * DaysAbsent
+            const daysAbsent = Math.max(0, totalWorkingDays - (summary.presentDays + summary.approvedLeaveDays));
+            const lopMultiplier = daysAbsent / totalWorkingDays;
 
-            const netSalary = Number(salary.grossSalary) - attendanceDeduction;
+            const attendanceDeduction = Number(salary.grossSalary) * lopMultiplier;
+
+            // Adjusted components for statutory base
+            const effectiveGross = Number(salary.grossSalary) - attendanceDeduction;
+            const effectiveBasic = Number(salary.basicSalary) * (1 - lopMultiplier);
+
+            // --- Statutory Deductions (India) ---
+            let pfDeduction = 0;
+            let esiDeduction = 0;
+            let ptDeduction = 0;
+
+            if (emp.statutoryDetails) {
+                // EPF (12% of Basic, capping Basic at 15000 is common but optional)
+                if (emp.statutoryDetails.pfApplicable) {
+                    const pfBase = Math.min(effectiveBasic, 15000); // PF usually capped at 15000 basic
+                    pfDeduction = pfBase * 0.12;
+                }
+
+                // ESI (0.75% of Gross if Gross <= 21000)
+                if (emp.statutoryDetails.esiApplicable && effectiveGross <= 21000) {
+                    esiDeduction = effectiveGross * 0.0075;
+                }
+
+                // PT (Professional Tax - simplified as ₹200 for gross > 10000)
+                if (effectiveGross > 10000) {
+                    ptDeduction = 200;
+                }
+            }
+
+            // Net Salary Calculation
+            const totalDeductions = attendanceDeduction + pfDeduction + esiDeduction + ptDeduction;
+            const netSalary = Math.max(0, Number(salary.grossSalary) - totalDeductions);
 
             const record = await this.repository.createPayrollRecord({
                 payrollCycleId: cycle.id,
@@ -102,10 +139,13 @@ export class PayrollService {
                 otherAllowances: salary.otherAllowances,
                 grossSalary: salary.grossSalary,
                 attendanceDeduction: Number(attendanceDeduction.toFixed(2)),
-                leaveDeduction: 0, // In this simple model, we count approved leaves as working days
+                leaveDeduction: 0,
+                pfDeduction: Number(pfDeduction.toFixed(2)),
+                esiDeduction: Number(esiDeduction.toFixed(2)),
+                ptDeduction: ptDeduction,
                 netSalary: Number(netSalary.toFixed(2)),
                 workingDays: totalWorkingDays,
-                presentDays: summary.presentDays + summary.approvedLeaveDays // Count both as paid
+                presentDays: summary.presentDays + summary.approvedLeaveDays
             });
 
             results.push(record);
