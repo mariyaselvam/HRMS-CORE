@@ -31,4 +31,8 @@ export class OrganizationService {
     async createLocation(companyId: string, data: CreateWorkLocationInput) {
         return this.orgRepository.createLocation(companyId, data);
     }
+
+    async getLocations(companyId: string) {
+        return this.orgRepository.findLocationsByCompany(companyId);
+    }
 }

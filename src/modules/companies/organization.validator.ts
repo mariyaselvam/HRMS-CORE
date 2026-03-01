@@ -31,8 +31,8 @@ export const createTeamSchema = z.object({
 export const createWorkLocationSchema = z.object({
     name: z.string().min(1, "Location name is required"),
     address: z.string().optional(),
-    latitude: z.number().optional(),
-    longitude: z.number().optional(),
+    latitude: z.coerce.number().optional().nullable(),
+    longitude: z.coerce.number().optional().nullable(),
 });
 
 export const validateCreateDepartment = validateRequest(createDepartmentSchema);

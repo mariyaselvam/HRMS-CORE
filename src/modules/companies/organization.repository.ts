@@ -56,4 +56,11 @@ export class OrganizationRepository {
             }
         });
     }
+
+    async findLocationsByCompany(companyId: string) {
+        return prisma.workLocation.findMany({
+            where: { companyId },
+            include: { _count: { select: { employees: true } } }
+        });
+    }
 }

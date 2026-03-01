@@ -129,6 +129,7 @@ model WorkLocation {
   radiusMeters   Int?            @map("radius_meters")
   createdAt      DateTime        @default(now()) @map("created_at")
   attendanceLogs AttendanceLog[]
+  employees      Employee[]
   company        Company         @relation(fields: [companyId], references: [id])
 
   @@map("work_locations")
@@ -170,6 +171,7 @@ model Employee {
   userId            String    @unique @map("user_id") @db.Uuid
   employeeCode      String    @map("employee_code")
   departmentId      String    @map("department_id") @db.Uuid
+  workLocationId    String?   @map("work_location_id") @db.Uuid
   teamId            String?   @map("team_id") @db.Uuid
   managerId         String?   @map("manager_id") @db.Uuid
   dateOfJoining     DateTime  @map("date_of_joining") @db.Date
@@ -193,6 +195,7 @@ model Employee {
   shifts           EmployeeShift[]
   company          Company             @relation(fields: [companyId], references: [id])
   department       Department          @relation("EmployeeDepartment", fields: [departmentId], references: [id])
+  workLocation     WorkLocation?       @relation(fields: [workLocationId], references: [id])
   manager          Employee?           @relation("EmployeeManager", fields: [managerId], references: [id])
   subordinates     Employee[]          @relation("EmployeeManager")
   team             Team?               @relation(fields: [teamId], references: [id])

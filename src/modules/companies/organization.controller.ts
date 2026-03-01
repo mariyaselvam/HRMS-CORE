@@ -45,4 +45,10 @@ export class OrganizationController {
         const location = await this.orgService.createLocation(companyId, req.body);
         res.status(201).json({ success: true, data: location });
     };
+
+    getLocations = async (req: Request, res: Response) => {
+        const companyId = req.user!.companyId;
+        const locations = await this.orgService.getLocations(companyId);
+        res.json({ success: true, data: locations });
+    };
 }
