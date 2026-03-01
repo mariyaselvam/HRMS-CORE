@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import prisma from '../../common/utils/prisma';
 import {
     OnboardEmployeeInput,
@@ -24,7 +25,7 @@ export class EmployeeRepository {
     }
 
     async createEmployee(companyId: string, data: OnboardEmployeeInput, hashedPassword: string) {
-        return prisma.$transaction(async (tx) => {
+        return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
             let role = await tx.role.findFirst({
                 where: { companyId, name: data.role || 'Employee' }
             });
@@ -87,7 +88,7 @@ export class EmployeeRepository {
             permAddress: data.permAddress,
         };
 
-        return prisma.$transaction(async (tx) => {
+        return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
             const details = await tx.employeePersonalDetail.upsert({
                 where: { employeeId },
                 update: payload,
@@ -115,7 +116,7 @@ export class EmployeeRepository {
             noticePeriod: data.noticePeriod,
         };
 
-        return prisma.$transaction(async (tx) => {
+        return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
             const details = await tx.employeeJobDetail.upsert({
                 where: { employeeId },
                 update: payload,
@@ -135,7 +136,7 @@ export class EmployeeRepository {
     }
 
     async upsertStatutoryDetails(employeeId: string, data: OnboardStep4Input) {
-        return prisma.$transaction(async (tx) => {
+        return prisma.$transaction(async (tx: Prisma.TransactionClient) => {
             // 1. Update Bank Details
             await tx.employeeBankDetail.upsert({
                 where: { employeeId },
