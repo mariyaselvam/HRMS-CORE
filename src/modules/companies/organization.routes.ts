@@ -20,5 +20,6 @@ router.post('/teams', validateCreateTeam, controller.createTeam);
 
 // Locations
 router.post('/locations', validateCreateLocation, controller.createLocation);
+router.get('/locations', controller.getLocations);
 
 export default router;

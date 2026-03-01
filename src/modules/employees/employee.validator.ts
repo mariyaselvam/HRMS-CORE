@@ -14,8 +14,9 @@ export const onboardStep1Schema = z.object({
     password: z.string().min(8, "Password must be at least 8 characters"),
     employeeCode: z.string().min(1, "Employee code is required"),
     departmentId: z.string().uuid("Invalid department ID format"),
+    workLocationId: z.uuid("Invalid work location ID format").optional(),
     role: z.enum(['Employee', 'Manager', 'HR']).optional().default('Employee'),
-    managerId: z.string().uuid("Invalid manager ID format").optional(),
+    managerId: z.uuid("Invalid manager ID format").optional(),
     dateOfJoining: z.string().refine((val) => !isNaN(Date.parse(val)), {
         message: "Invalid date format for dateOfJoining",
     }),
@@ -71,9 +72,10 @@ export const onboardStep4Schema = z.object({
  */
 export const onboardEmployeeSchema = onboardStep1Schema; // Use step 1 as initial
 export const updateEmployeeSchema = z.object({
-    departmentId: z.string().uuid("Invalid department ID format").optional(),
-    teamId: z.string().uuid("Invalid team ID format").optional(),
-    managerId: z.string().uuid("Invalid manager ID format").optional(),
+    departmentId: z.uuid("Invalid department ID format").optional(),
+    workLocationId: z.uuid("Invalid work location ID format").optional(),
+    teamId: z.uuid("Invalid team ID format").optional(),
+    managerId: z.uuid("Invalid manager ID format").optional(),
     status: EmploymentStatus.optional(),
 });
 

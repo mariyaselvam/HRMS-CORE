@@ -54,6 +54,7 @@ export class EmployeeRepository {
                     userId: user.id,
                     companyId,
                     departmentId: data.departmentId,
+                    workLocationId: data.workLocationId,
                     managerId: data.managerId,
                     dateOfJoining: new Date(data.dateOfJoining),
                     employmentStatus: data.status || 'probation',
@@ -65,7 +66,8 @@ export class EmployeeRepository {
                             email: true
                         }
                     },
-                    department: true
+                    department: true,
+                    workLocation: true
                 }
             });
 
@@ -194,6 +196,7 @@ export class EmployeeRepository {
             include: {
                 user: { select: { email: true } },
                 department: { select: { name: true } },
+                workLocation: { select: { name: true } },
                 manager: { select: { employeeCode: true } },
                 personalDetails: true,
                 jobDetails: true,
@@ -209,6 +212,7 @@ export class EmployeeRepository {
             include: {
                 user: { select: { email: true, role: true } },
                 department: true,
+                workLocation: true,
                 personalDetails: true,
                 jobDetails: true,
                 bankDetails: true,
@@ -222,6 +226,7 @@ export class EmployeeRepository {
             where: { id, companyId },
             data: {
                 departmentId: data.departmentId,
+                workLocationId: data.workLocationId,
                 teamId: data.teamId,
                 managerId: data.managerId,
                 employmentStatus: data.status
