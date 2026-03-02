@@ -6,7 +6,7 @@ import { globalErrorHandler } from './common/middleware/error.handler';
 const app = express();
 
 app.use(cors({
-    origin: ['http://localhost:4200'],
+    origin: ['http://localhost:4200', 'https://hrms-fe-five.vercel.app'],
     credentials: true
 }));
 
