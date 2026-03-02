@@ -15,7 +15,10 @@ export const onboardStep1Schema = z.object({
     employeeCode: z.string().min(1, "Employee code is required"),
     departmentId: z.string().uuid("Invalid department ID format"),
     workLocationId: z.uuid("Invalid work location ID format").optional(),
-    role: z.enum(['Employee', 'Manager', 'HR']).optional().default('Employee'),
+    role: z.preprocess(
+        (val) => typeof val === 'string' ? val.charAt(0).toUpperCase() + val.toLowerCase().slice(1) : val,
+        z.enum(['Employee', 'Manager', 'HR']).optional().default('Employee')
+    ),
     managerId: z.uuid("Invalid manager ID format").optional(),
     dateOfJoining: z.string().refine((val) => !isNaN(Date.parse(val)), {
         message: "Invalid date format for dateOfJoining",

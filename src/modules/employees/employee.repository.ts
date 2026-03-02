@@ -98,7 +98,7 @@ export class EmployeeRepository {
                 where: { id: employeeId },
                 data: {
                     onboardingStep: { set: 3 },
-                    profileCompletion: { increment: 20 }
+                    profileCompletion: { increment: 30 }
                 }
             });
 
@@ -126,7 +126,7 @@ export class EmployeeRepository {
                 where: { id: employeeId },
                 data: {
                     onboardingStep: { set: 4 },
-                    profileCompletion: { increment: 20 }
+                    profileCompletion: { increment: 30 }
                 }
             });
 
@@ -181,8 +181,8 @@ export class EmployeeRepository {
             await tx.employee.update({
                 where: { id: employeeId },
                 data: {
-                    onboardingStep: { set: 5 }, // Documents is next
-                    profileCompletion: { increment: 30 }
+                    onboardingStep: { set: 5 }, // Documents is next (if added later)
+                    profileCompletion: { increment: 40 }
                 }
             });
 
