@@ -51,4 +51,24 @@ export class OrganizationController {
         const locations = await this.orgService.getLocations(companyId);
         res.json({ success: true, data: locations });
     };
+
+    getTeams = async (req: Request, res: Response) => {
+        const companyId = req.user!.companyId;
+        const teams = await this.orgService.getTeams(companyId);
+        res.json({ success: true, data: teams });
+    };
+
+    updateTeam = async (req: Request, res: Response) => {
+        const companyId = req.user!.companyId;
+        const id = req.params.id as string;
+        const team = await this.orgService.updateTeam(id, companyId, req.body);
+        res.json({ success: true, data: team });
+    };
+
+    deleteTeam = async (req: Request, res: Response) => {
+        const companyId = req.user!.companyId;
+        const id = req.params.id as string;
+        await this.orgService.deleteTeam(id, companyId);
+        res.json({ success: true, message: 'Team deleted successfully' });
+    };
 }

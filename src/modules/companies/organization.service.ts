@@ -35,4 +35,16 @@ export class OrganizationService {
     async getLocations(companyId: string) {
         return this.orgRepository.findLocationsByCompany(companyId);
     }
+
+    async getTeams(companyId: string) {
+        return this.orgRepository.findTeamsByCompany(companyId);
+    }
+
+    async updateTeam(id: string, companyId: string, data: any) {
+        return this.orgRepository.updateTeam(id, companyId, data);
+    }
+
+    async deleteTeam(id: string, companyId: string) {
+        return this.orgRepository.deleteTeam(id, companyId);
+    }
 }

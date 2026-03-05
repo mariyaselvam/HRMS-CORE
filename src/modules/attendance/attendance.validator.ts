@@ -17,6 +17,15 @@ export const createShiftSchema = z.object({
 });
 
 /**
+ * Assign Shift Validation Schema
+ */
+export const assignShiftSchema = z.object({
+    employeeId: z.string().uuid("Invalid employee ID format"),
+    shiftId: z.string().uuid("Invalid shift ID format"),
+    effectiveFrom: z.string().refine((val) => !isNaN(Date.parse(val)), "Invalid date"),
+});
+
+/**
  * Check-In Validation Schema
  */
 export const checkInSchema = z.object({
@@ -42,11 +51,13 @@ export const attendanceFilterSchema = z.object({
 });
 
 export const validateCreateShift = validateRequest(createShiftSchema);
+export const validateAssignShift = validateRequest(assignShiftSchema);
 export const validateCheckIn = validateRequest(checkInSchema);
 export const validateCheckOut = validateRequest(checkOutSchema);
 export const validateAttendanceFilter = validateRequest(attendanceFilterSchema);
 
 export type CreateShiftInput = z.infer<typeof createShiftSchema>;
+export type AssignShiftInput = z.infer<typeof assignShiftSchema>;
 export type CheckInInput = z.infer<typeof checkInSchema>;
 export type CheckOutInput = z.infer<typeof checkOutSchema>;
 export type AttendanceFilterInput = z.infer<typeof attendanceFilterSchema>;

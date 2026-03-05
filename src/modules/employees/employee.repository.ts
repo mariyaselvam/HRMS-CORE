@@ -4,7 +4,8 @@ import {
     UpdateEmployeeInput,
     OnboardStep2Input,
     OnboardStep3Input,
-    OnboardStep4Input
+    OnboardStep4Input,
+    OnboardStep5Input
 } from './employee.validator';
 
 export class EmployeeRepository {
@@ -134,10 +135,9 @@ export class EmployeeRepository {
         });
     }
 
-    async upsertStatutoryDetails(employeeId: string, data: OnboardStep4Input) {
+    async upsertBankDetails(employeeId: string, data: any) {
         return prisma.$transaction(async (tx) => {
-            // 1. Update Bank Details
-            await tx.employeeBankDetail.upsert({
+            const details = await tx.employeeBankDetail.upsert({
                 where: { employeeId },
                 update: {
                     accountNumber: data.accountNumber,
@@ -154,7 +154,17 @@ export class EmployeeRepository {
                 }
             });
 
-            // 2. Update Statutory Details
+            await tx.employee.update({
+                where: { id: employeeId },
+                data: { onboardingStep: { set: 5 } }
+            });
+
+            return details;
+        });
+    }
+
+    async upsertStatutoryDetails(employeeId: string, data: OnboardStep5Input) {
+        return prisma.$transaction(async (tx) => {
             const statutory = await tx.employeeStatutoryDetail.upsert({
                 where: { employeeId },
                 update: {
@@ -181,7 +191,7 @@ export class EmployeeRepository {
             await tx.employee.update({
                 where: { id: employeeId },
                 data: {
-                    onboardingStep: { set: 5 }, // Documents is next (if added later)
+                    onboardingStep: { set: 6 },
                     profileCompletion: { increment: 40 }
                 }
             });

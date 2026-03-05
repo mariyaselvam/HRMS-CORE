@@ -10,10 +10,10 @@ export const EmploymentStatus = z.enum(['active', 'probation', 'notice', 'termin
  * Step 1: Account & Core Org Mapping (Mandatory)
  */
 export const onboardStep1Schema = z.object({
-    email: z.string().email("Invalid email address"),
+    email: z.email("Invalid email address"),
     password: z.string().min(8, "Password must be at least 8 characters"),
     employeeCode: z.string().min(1, "Employee code is required"),
-    departmentId: z.string().uuid("Invalid department ID format"),
+    departmentId: z.uuid("Invalid department ID format"),
     workLocationId: z.uuid("Invalid work location ID format").optional(),
     role: z.preprocess(
         (val) => typeof val === 'string' ? val.charAt(0).toUpperCase() + val.toLowerCase().slice(1) : val,
@@ -54,15 +54,21 @@ export const onboardStep3Schema = z.object({
 });
 
 /**
- * Step 4: Payroll & Statutory Setup
+ * Step 4: Bank Details
  */
 export const onboardStep4Schema = z.object({
     accountNumber: z.string().regex(/^\d{9,18}$/, "Invalid Bank Account Number").optional(),
     ifscCode: z.string().regex(/^[A-Z]{4}0[A-Z0-9]{6}$/, "Invalid IFSC Code").optional(),
     bankName: z.string().optional(),
     branchName: z.string().optional(),
+});
+
+/**
+ * Step 5: Statutory Setup
+ */
+export const onboardStep5Schema = z.object({
     pan: z.string().regex(/^[A-Z]{5}[0-9]{4}[A-Z]{1}$/, "Invalid PAN format").optional(),
-    uan: z.string().regex(/^\d{12}$/, "Invalid UAN format").optional(),
+    uan: z.string().optional(), // Removed strict UAN regex for flexibility
     pfApplicable: z.boolean().optional(),
     esiApplicable: z.boolean().optional(),
     esiNumber: z.string().optional(),
@@ -86,11 +92,13 @@ export const validateOnboard = validateRequest(onboardStep1Schema);
 export const validateOnboardStep2 = validateRequest(onboardStep2Schema);
 export const validateOnboardStep3 = validateRequest(onboardStep3Schema);
 export const validateOnboardStep4 = validateRequest(onboardStep4Schema);
+export const validateOnboardStep5 = validateRequest(onboardStep5Schema);
 export const validateUpdateEmployee = validateRequest(updateEmployeeSchema);
 
 export type OnboardEmployeeInput = z.infer<typeof onboardStep1Schema>;
 export type OnboardStep2Input = z.infer<typeof onboardStep2Schema>;
 export type OnboardStep3Input = z.infer<typeof onboardStep3Schema>;
 export type OnboardStep4Input = z.infer<typeof onboardStep4Schema>;
+export type OnboardStep5Input = z.infer<typeof onboardStep5Schema>;
 export type UpdateEmployeeInput = z.infer<typeof updateEmployeeSchema>;
 

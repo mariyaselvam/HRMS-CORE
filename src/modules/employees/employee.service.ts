@@ -5,7 +5,8 @@ import {
     UpdateEmployeeInput,
     OnboardStep2Input,
     OnboardStep3Input,
-    OnboardStep4Input
+    OnboardStep4Input,
+    OnboardStep5Input
 } from './employee.validator';
 import { AppError, NotFoundError } from '../../common/errors/AppError';
 
@@ -46,7 +47,12 @@ export class EmployeeService {
         return this.employeeRepository.upsertJobDetails(employeeId, data);
     }
 
-    async saveStatutoryDetails(employeeId: string, companyId: string, data: OnboardStep4Input) {
+    async saveBankDetails(employeeId: string, companyId: string, data: any) {
+        await this.getEmployeeDetail(employeeId, companyId);
+        return this.employeeRepository.upsertBankDetails(employeeId, data);
+    }
+
+    async saveStatutoryDetails(employeeId: string, companyId: string, data: OnboardStep5Input) {
         await this.getEmployeeDetail(employeeId, companyId);
         return this.employeeRepository.upsertStatutoryDetails(employeeId, data);
     }

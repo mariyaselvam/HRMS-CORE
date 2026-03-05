@@ -28,6 +28,13 @@ export class EmployeeController {
         res.json({ success: true, data: result });
     };
 
+    saveBank = async (req: Request, res: Response) => {
+        const companyId = req.user!.companyId;
+        const employeeId = req.params.id as string;
+        const result = await this.employeeService.saveBankDetails(employeeId, companyId, req.body);
+        res.json({ success: true, data: result });
+    };
+
     saveStatutory = async (req: Request, res: Response) => {
         const companyId = req.user!.companyId;
         const employeeId = req.params.id as string;

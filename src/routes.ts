@@ -16,7 +16,7 @@ router.use('/auth', authRoutes);
 
 // Organization routes
 router.use('/org', orgRoutes);
-router.use('/org/holidays', holidayRoutes);
+router.use('/holidays', holidayRoutes);
 
 // Employee routes
 router.use('/employees', employeeRoutes);

@@ -21,6 +21,11 @@ export class AttendanceController {
         res.json({ success: true, data: result });
     };
 
+    assignShift = async (req: Request, res: Response) => {
+        const result = await this.service.assignEmployeeShift(req.body);
+        res.status(201).json({ success: true, data: result });
+    };
+
     // Tracking
     checkIn = async (req: Request, res: Response) => {
         const { userId, companyId } = req.user!;

@@ -1,5 +1,5 @@
 import { AttendanceRepository } from './attendance.repository';
-import { CreateShiftInput, CheckInInput, CheckOutInput, AttendanceFilterInput } from './attendance.validator';
+import { CreateShiftInput, AssignShiftInput, CheckInInput, CheckOutInput, AttendanceFilterInput } from './attendance.validator';
 import { AppError, NotFoundError } from '../../common/errors/AppError';
 import prisma from '../../common/utils/prisma';
 
@@ -19,10 +19,15 @@ export class AttendanceService {
         return this.repository.listShifts(companyId);
     }
 
+    async assignEmployeeShift(data: AssignShiftInput) {
+        return this.repository.assignShift(data);
+    }
+
     // Check-In Logic
     async processCheckIn(userId: string, companyId: string, data: CheckInInput) {
         const employee = await prisma.employee.findUnique({
-            where: { userId }
+            where: { userId },
+            include: { workLocation: true }
         });
 
         if (!employee) {
@@ -30,14 +35,54 @@ export class AttendanceService {
         }
 
         const today = new Date();
-        today.setUTCHours(0, 0, 0, 0);
-        const existing = await this.repository.getTodayLog(employee.id, today);
+        const attendanceDate = new Date(today);
+        attendanceDate.setUTCHours(0, 0, 0, 0);
 
+        const existing = await this.repository.getTodayLog(employee.id, attendanceDate);
         if (existing) {
             throw new AppError('Already checked in for today', 400);
         }
 
-        return this.repository.createCheckIn(employee.id, companyId, data);
+        // 1. Determine Shift
+        let shiftId = data.shiftId;
+        let activeShift = null;
+
+        if (!shiftId) {
+            const shiftAssignment = await this.repository.getActiveShift(employee.id);
+            if (shiftAssignment) {
+                activeShift = shiftAssignment.shift;
+                shiftId = activeShift.id;
+            }
+        } else {
+            activeShift = await prisma.shift.findUnique({ where: { id: shiftId } });
+        }
+
+        // 2. Determine Status (Grace Period Logic)
+        let status = 'present';
+        if (activeShift) {
+            const now = new Date();
+            const shiftStart = new Date(now);
+            const shiftStartTime = new Date(activeShift.startTime);
+
+            shiftStart.setHours(shiftStartTime.getUTCHours(), shiftStartTime.getUTCMinutes(), 0, 0);
+
+            const graceThreshold = new Date(shiftStart.getTime() + (activeShift.graceMinutes * 60000));
+
+            if (now > graceThreshold) {
+                status = 'late';
+                // Optional: If more than 2 hours late, mark as half-day
+                const halfDayThreshold = new Date(shiftStart.getTime() + (120 * 60000));
+                if (now > halfDayThreshold) {
+                    status = 'half-day';
+                }
+            }
+        }
+
+        return this.repository.createCheckIn(employee.id, companyId, {
+            ...data,
+            shiftId,
+            status
+        } as any);
     }
 
     // Check-Out Logic

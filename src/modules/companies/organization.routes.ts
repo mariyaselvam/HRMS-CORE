@@ -17,6 +17,9 @@ router.delete('/departments/:id', controller.deleteDepartment);
 
 // Teams
 router.post('/teams', validateCreateTeam, controller.createTeam);
+router.get('/teams', controller.getTeams);
+router.patch('/teams/:id', controller.updateTeam);
+router.delete('/teams/:id', controller.deleteTeam);
 
 // Locations
 router.post('/locations', validateCreateLocation, controller.createLocation);

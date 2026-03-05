@@ -14,6 +14,13 @@ export class PayrollController {
         res.status(201).json({ success: true, data: result });
     };
 
+    getSalaryStructure = async (req: Request, res: Response) => {
+        const companyId = req.user!.companyId;
+        const employeeId = req.params.id as string;
+        const result = await this.service.getSalaryDetail(companyId, employeeId);
+        res.json({ success: true, data: result });
+    };
+
     generate = async (req: Request, res: Response) => {
         const { companyId, userId } = req.user!;
         const result = await this.service.generateMonthlyPayroll(companyId, userId, req.body);

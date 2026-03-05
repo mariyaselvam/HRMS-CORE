@@ -1,13 +1,12 @@
-import express from 'express';
 import cors from 'cors';
-import routes from './routes';
+import express from 'express';
 import { globalErrorHandler } from './common/middleware/error.handler';
+import routes from './routes';
 
 const app = express();
 
 app.use(cors({
-    origin: ['http://localhost:4200', 'https://hrms-fe-five.vercel.app'],
-    credentials: true
+    origin: '*',
 }));
 
 app.use(express.json());

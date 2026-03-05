@@ -16,6 +16,7 @@ router.use(authenticate);
 router.post('/salary-setup', validateSalaryStructure, controller.setupSalary);
 
 // Payroll Processing
+router.get('/salary-structure/:id', controller.getSalaryStructure);
 router.post('/generate', validateGeneratePayroll, controller.generate);
 router.get('/records', controller.listRecords);
 router.patch('/cycles/:id/finalize', controller.finalize);

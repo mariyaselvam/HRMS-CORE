@@ -63,4 +63,30 @@ export class OrganizationRepository {
             include: { _count: { select: { employees: true } } }
         });
     }
+
+    async findTeamsByCompany(companyId: string) {
+        return prisma.team.findMany({
+            where: { companyId },
+            include: {
+                department: { select: { name: true } },
+                _count: { select: { employees: true } }
+            }
+        });
+    }
+
+    async updateTeam(id: string, companyId: string, data: Partial<CreateTeamInput>) {
+        return prisma.team.update({
+            where: { id, companyId },
+            data: {
+                name: data.name,
+                departmentId: data.departmentId
+            }
+        });
+    }
+
+    async deleteTeam(id: string, companyId: string) {
+        return prisma.team.delete({
+            where: { id, companyId }
+        });
+    }
 }

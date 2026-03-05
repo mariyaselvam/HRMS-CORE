@@ -6,7 +6,8 @@ import {
     validateUpdateEmployee,
     validateOnboardStep2,
     validateOnboardStep3,
-    validateOnboardStep4
+    validateOnboardStep4,
+    validateOnboardStep5
 } from './employee.validator';
 import { DocumentController } from './document.controller';
 import { upload } from '../../common/middleware/upload.middleware';
@@ -25,7 +26,8 @@ router.post('/onboard', validateOnboard, controller.onboard);
 // Progressive Onboarding (Steps 2-4)
 router.patch('/:id/personal', validateOnboardStep2, controller.savePersonal);
 router.patch('/:id/job', validateOnboardStep3, controller.saveJob);
-router.patch('/:id/statutory', validateOnboardStep4, controller.saveStatutory);
+router.patch('/:id/bank', controller.saveBank);
+router.patch('/:id/statutory', validateOnboardStep5, controller.saveStatutory);
 
 // Management
 router.get('/', controller.list);

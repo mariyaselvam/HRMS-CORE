@@ -31,6 +31,16 @@ export class PayrollService {
         return this.repository.upsertSalaryStructure(data);
     }
 
+    async getSalaryDetail(companyId: string, employeeId: string) {
+        // Verify employee belongs to company
+        const employee = await prisma.employee.findFirst({
+            where: { id: employeeId, companyId }
+        });
+        if (!employee) throw new NotFoundError('Employee not found');
+
+        return this.repository.getActiveSalary(employeeId);
+    }
+
     // --- Payroll Generation ---
     async generateMonthlyPayroll(companyId: string, adminUserId: string, data: GeneratePayrollInput) {
         const monthDate = new Date(`${data.month}-01`);
@@ -157,7 +167,7 @@ export class PayrollService {
     async getCycleRecords(companyId: string, month: string) {
         const monthDate = new Date(`${month}-01`);
         const cycle = await this.repository.findCycle(companyId, monthDate);
-        if (!cycle) throw new NotFoundError('Payroll cycle not found for this month');
+        if (!cycle) return [];
 
         return this.repository.getPayrollRecords(cycle.id);
     }
