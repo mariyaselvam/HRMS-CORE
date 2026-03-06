@@ -8,8 +8,14 @@ import leaveRoutes from './modules/leave/leave.routes';
 import payrollRoutes from './modules/payroll/payroll.routes';
 import holidayRoutes from './modules/companies/holiday.routes';
 import dashboardRoutes from './modules/dashboard/dashboard.routes';
+import testingRoutes from './modules/testing/testing.routes';
 
 const router = Router();
+
+// Testing routes (Conditioned for dev/test)
+if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_TESTING_API === 'true') {
+    router.use('/testing', testingRoutes);
+}
 
 // Auth routes
 router.use('/auth', authRoutes);
