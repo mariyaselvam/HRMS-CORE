@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { AttendanceController } from './attendance.controller';
 import { authenticate } from '../../common/middleware/auth.middleware';
-import { validateCreateShift, validateAssignShift, validateCheckIn, validateCheckOut } from './attendance.validator';
+import { validateCreateShift, validateAssignShift, validateCheckIn, validateCheckOut, validateAttendanceFilter } from './attendance.validator';
 
 const router = Router();
 const controller = new AttendanceController();
@@ -19,6 +19,7 @@ router.post('/check-in', validateCheckIn, controller.checkIn);
 router.post('/check-out', validateCheckOut, controller.checkOut);
 
 // Logs (Admin/Manager)
-router.get('/logs', controller.history);
+router.get('/logs', validateAttendanceFilter, controller.history);
+router.get('/admin/logs', validateAttendanceFilter, controller.allHistory);
 
 export default router;

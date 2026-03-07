@@ -1,4 +1,3 @@
-import { faker } from '@faker-js/faker';
 import { BaseFactory } from './base.factory';
 import prisma from '../../src/common/utils/prisma';
 import { AttendanceLog } from '@prisma/client';
@@ -15,7 +14,7 @@ export class AttendanceFactory extends BaseFactory<AttendanceLog> {
         };
     }
 
-    async generateForDate(employeeId: string, date: Date, status: 'present' | 'absent' | 'late') {
+    async generateForDate(employeeId: string, date: Date, status: 'present' | 'absent' | 'late', shiftId?: string, workLocationId?: string) {
         let checkIn: Date | null = null;
         let checkOut: Date | null = null;
         let totalHours = 0;
@@ -36,7 +35,9 @@ export class AttendanceFactory extends BaseFactory<AttendanceLog> {
             status,
             checkIn,
             checkOut,
-            totalHours,
+            totalHours: status === 'absent' ? 0 : String(totalHours),
+            shiftId,
+            workLocationId,
         });
     }
 }

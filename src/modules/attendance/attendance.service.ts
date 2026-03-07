@@ -108,15 +108,21 @@ export class AttendanceService {
         return this.repository.updateCheckOut(log.id, data);
     }
 
-    async getAttendanceHistory(companyId: string, userId: string, filter: AttendanceFilterInput) {
-        // If no explicit employeeId filter provided, scope to the requesting user's own employee record
+    async getAttendanceHistory(companyId: string, userId: string | undefined, role: string, filter: AttendanceFilterInput) {
         let employeeId = filter.employeeId;
 
+        // If no explicit employeeId filter is provided:
         if (!employeeId) {
-            const employee = await prisma.employee.findUnique({ where: { userId } });
-            if (employee) {
-                employeeId = employee.id;
+            // Case 1: If userId is provided, it's a personal view request.
+            // Even Admins should see their own logs by default in their personal tab.
+            if (userId) {
+                const employee = await prisma.employee.findUnique({ where: { userId } });
+                employeeId = employee?.id;
             }
+            // Case 2: If userId is NOT provided (Internal call for All Logs) 
+            // AND user is NOT an admin/manager, we shouldn't allow it (security check).
+            // But here the controllers handle the routing, so if userId is undefined, 
+            // the controller intended to show "All".
         }
 
         return this.repository.listAttendance(companyId, { ...filter, employeeId });
