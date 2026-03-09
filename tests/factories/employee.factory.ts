@@ -8,12 +8,15 @@ export class EmployeeFactory extends BaseFactory<Employee> {
     protected model = prisma.employee;
 
     protected async definition() {
+        const step = faker.number.int({ min: 1, max: 6 });
+        const progress = [0, 15, 30, 45, 60, 80][step - 1];
+
         return {
             employeeCode: `EMP${faker.string.uuid().split('-')[0].toUpperCase()}${faker.string.numeric(4)}`,
             dateOfJoining: faker.date.past(),
-            employmentStatus: 'active',
-            onboardingStep: 4,
-            profileCompletion: 100,
+            employmentStatus: step === 6 ? 'active' : 'probation',
+            onboardingStep: step,
+            profileCompletion: progress,
         };
     }
 

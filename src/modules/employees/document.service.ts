@@ -2,6 +2,7 @@ import { DocumentRepository } from './document.repository';
 import { UploadDocumentInput } from './document.validator';
 import { NotFoundError } from '../../common/errors/AppError';
 import prisma from '../../common/utils/prisma';
+import { uploadFile } from '../../common/utils/s3';
 
 export class DocumentService {
     private repository: DocumentRepository;
@@ -10,7 +11,7 @@ export class DocumentService {
         this.repository = new DocumentRepository();
     }
 
-    async uploadFile(userId: string, companyId: string, data: UploadDocumentInput, fileInfo: { path: string, originalname: string }) {
+    async uploadFile(userId: string, companyId: string, data: UploadDocumentInput, file: Express.Multer.File) {
         // 1. Verify employee exists in company
         const employee = await prisma.employee.findFirst({
             where: { id: data.employeeId, companyId }
@@ -20,10 +21,16 @@ export class DocumentService {
             throw new NotFoundError('Employee not found in your company');
         }
 
-        // 2. Persist metadata
+        // 2. Create bucket path: company/employee/timestamp-filename
+        const path = `${companyId}/${data.employeeId}/${Date.now()}-${file.originalname}`;
+
+        // 3. Upload to Supabase S3
+        const fileUrl = await uploadFile(file, path);
+
+        // 4. Persist metadata to database
         return this.repository.createDocument(userId, data, {
-            url: fileInfo.path,
-            name: fileInfo.originalname
+            url: fileUrl,
+            name: file.originalname
         });
     }
 

@@ -59,7 +59,8 @@ export class EmployeeRepository {
                     managerId: data.managerId,
                     dateOfJoining: new Date(data.dateOfJoining),
                     employmentStatus: data.status || 'probation',
-                    onboardingStep: 2, // Account created, next is step 2
+                    onboardingStep: 2,
+                    profileCompletion: 15,
                 },
                 include: {
                     user: {
@@ -99,7 +100,7 @@ export class EmployeeRepository {
                 where: { id: employeeId },
                 data: {
                     onboardingStep: { set: 3 },
-                    profileCompletion: { increment: 30 }
+                    profileCompletion: { set: 30 }
                 }
             });
 
@@ -127,7 +128,7 @@ export class EmployeeRepository {
                 where: { id: employeeId },
                 data: {
                     onboardingStep: { set: 4 },
-                    profileCompletion: { increment: 30 }
+                    profileCompletion: { set: 45 }
                 }
             });
 
@@ -156,7 +157,10 @@ export class EmployeeRepository {
 
             await tx.employee.update({
                 where: { id: employeeId },
-                data: { onboardingStep: { set: 5 } }
+                data: {
+                    onboardingStep: { set: 5 },
+                    profileCompletion: { set: 60 }
+                }
             });
 
             return details;
@@ -192,7 +196,7 @@ export class EmployeeRepository {
                 where: { id: employeeId },
                 data: {
                     onboardingStep: { set: 6 },
-                    profileCompletion: { increment: 40 }
+                    profileCompletion: { set: 80 }
                 }
             });
 
@@ -208,10 +212,12 @@ export class EmployeeRepository {
                 department: { select: { name: true } },
                 workLocation: { select: { name: true } },
                 manager: { select: { employeeCode: true } },
+                team: { select: { name: true } },
                 personalDetails: true,
                 jobDetails: true,
                 bankDetails: true,
-                statutoryDetails: true
+                statutoryDetails: true,
+                documents: true
             }
         });
     }
@@ -223,10 +229,19 @@ export class EmployeeRepository {
                 user: { select: { email: true, role: true } },
                 department: true,
                 workLocation: true,
+                team: true,
                 personalDetails: true,
                 jobDetails: true,
                 bankDetails: true,
-                statutoryDetails: true
+                statutoryDetails: true,
+                documents: true,
+                manager: {
+                    select: {
+                        id: true,
+                        employeeCode: true,
+                        personalDetails: { select: { firstName: true, lastName: true } }
+                    }
+                }
             }
         });
     }
@@ -239,7 +254,28 @@ export class EmployeeRepository {
                 workLocationId: data.workLocationId,
                 teamId: data.teamId,
                 managerId: data.managerId,
-                employmentStatus: data.status
+                employmentStatus: data.status,
+                // If finalizing, set progress to 100%
+                profileCompletion: data.status === 'active' ? 100 : undefined,
+                onboardingStep: data.status === 'active' ? 7 : undefined
+            }
+        });
+    }
+
+    async addEmployeeDocument(data: {
+        employeeId: string;
+        documentType: string;
+        fileUrl: string;
+        fileName: string;
+        uploadedBy: string;
+    }) {
+        return prisma.employeeDocument.create({
+            data: {
+                employeeId: data.employeeId,
+                documentType: data.documentType,
+                fileUrl: data.fileUrl,
+                fileName: data.fileName,
+                uploadedBy: data.uploadedBy
             }
         });
     }

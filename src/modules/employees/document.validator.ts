@@ -6,8 +6,9 @@ import { validateRequest } from '../../common/middleware/validation.middleware';
  */
 export const uploadDocumentSchema = z.object({
     employeeId: z.uuid("Invalid employee ID"),
-    documentType: z.string().min(1, "Document type is required"),
-    expiryDate: z.string().refine((val) => !isNaN(Date.parse(val)), "Invalid expiry date").optional(),
+    documentType: z.string().optional(),
+    documentTypes: z.union([z.string(), z.array(z.string())]).optional(),
+    expiryDate: z.string().optional(),
 });
 
 export const validateUploadDocument = validateRequest(uploadDocumentSchema);

@@ -1,3 +1,4 @@
+import 'express-async-errors';
 import cors from 'cors';
 import express from 'express';
 import { globalErrorHandler } from './common/middleware/error.handler';
