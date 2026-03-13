@@ -100,6 +100,10 @@ export class AttendanceRepository {
     }
 
     async listAttendance(companyId: string, filter: AttendanceFilterInput) {
+        const page = Number(filter.page) || 1;
+        const limit = Number(filter.limit) || 10;
+        const skip = (page - 1) * limit;
+
         const where: any = {
             employee: {
                 companyId,
@@ -111,18 +115,14 @@ export class AttendanceRepository {
                 } : {})
             },
             ...(filter.employeeId ? { employeeId: filter.employeeId } : {}),
+            status: filter.status,
             attendanceDate: {
                 gte: filter.startDate ? new Date(filter.startDate) : undefined,
                 lte: filter.endDate ? new Date(filter.endDate) : undefined
             }
         };
 
-        const page = Number(filter.page) || 1;
-        const limit = Number(filter.limit) || 10;
-        const skip = (page - 1) * limit;
-
-        const [total, records] = await Promise.all([
-            prisma.attendanceLog.count({ where }),
+        const [records, total] = await Promise.all([
             prisma.attendanceLog.findMany({
                 where,
                 include: {
@@ -138,7 +138,8 @@ export class AttendanceRepository {
                 orderBy: { attendanceDate: 'desc' },
                 skip,
                 take: limit
-            })
+            }),
+            prisma.attendanceLog.count({ where })
         ]);
 
         return { total, records };

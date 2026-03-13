@@ -36,7 +36,10 @@ router.patch('/:id', validateUpdateEmployee, controller.update);
 router.post('/:id/finalize', controller.finalize);
 
 // Employee Documents
-router.post('/documents/upload', upload.single('file'), validateUploadDocument, docController.upload);
+router.post('/:employeeId/documents', upload.array('documents'), (req, res, next) => {
+    if (req.params.employeeId) req.body.employeeId = req.params.employeeId;
+    next();
+}, validateUploadDocument, docController.upload);
 router.get('/:employeeId/documents', docController.list);
 router.delete('/documents/:id', docController.delete);
 

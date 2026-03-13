@@ -48,16 +48,17 @@ export const attendanceFilterSchema = z.object({
     startDate: z.string().refine((val) => !isNaN(Date.parse(val))).optional(),
     endDate: z.string().refine((val) => !isNaN(Date.parse(val))).optional(),
     employeeId: z.string().uuid().optional(),
+    status: z.enum(['present', 'late', 'absent', 'half-day']).optional(),
     search: z.string().optional(),
-    page: z.string().or(z.number()).transform(v => Number(v)).optional(),
-    limit: z.string().or(z.number()).transform(v => Number(v)).optional(),
+    page: z.string().or(z.number()).transform(v => Number(v) || 1).optional(),
+    limit: z.string().or(z.number()).transform(v => Number(v) || 10).optional(),
 });
 
 export const validateCreateShift = validateRequest(createShiftSchema);
 export const validateAssignShift = validateRequest(assignShiftSchema);
 export const validateCheckIn = validateRequest(checkInSchema);
 export const validateCheckOut = validateRequest(checkOutSchema);
-export const validateAttendanceFilter = validateRequest(attendanceFilterSchema);
+export const validateAttendanceFilter = validateRequest(attendanceFilterSchema, 'query');
 
 export type CreateShiftInput = z.infer<typeof createShiftSchema>;
 export type AssignShiftInput = z.infer<typeof assignShiftSchema>;

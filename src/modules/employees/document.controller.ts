@@ -11,18 +11,28 @@ export class DocumentController {
 
     upload = async (req: Request, res: Response) => {
         const { userId, companyId } = req.user!;
-        const file = req.file;
+        const files = req.files as Express.Multer.File[];
 
-        if (!file) {
-            throw new AppError('No file uploaded', 400);
+        if (!files || files.length === 0) {
+            throw new AppError('No documents uploaded', 400);
         }
 
-        const result = await this.service.uploadFile(userId, companyId, req.body, {
-            path: file.path,
-            originalname: file.originalname
-        });
+        // Handle documentTypes which could be an array or a single string
+        const bodyTypes = req.body.documentTypes || req.body.documentType || 'other';
+        const docTypes = Array.isArray(bodyTypes) ? bodyTypes : [bodyTypes];
 
-        res.status(201).json({ success: true, data: result });
+        const results = [];
+        for (let i = 0; i < files.length; i++) {
+            const data = {
+                ...req.body,
+                documentType: docTypes[i] || docTypes[0] || 'other'
+            };
+
+            const result = await this.service.uploadFile(userId, companyId, data, files[i]);
+            results.push(result);
+        }
+
+        res.status(201).json({ success: true, data: results });
     };
 
     list = async (req: Request, res: Response) => {

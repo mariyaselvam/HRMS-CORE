@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { EmployeeService } from './employee.service';
+import { AppError } from '../../common/errors/AppError';
 
 export class EmployeeController {
     private employeeService: EmployeeService;

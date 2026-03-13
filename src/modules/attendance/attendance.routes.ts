@@ -20,5 +20,6 @@ router.post('/check-out', validateCheckOut, controller.checkOut);
 
 // Logs (Admin/Manager)
 router.get('/logs', validateAttendanceFilter, controller.history);
+router.get('/admin/logs', validateAttendanceFilter, controller.allHistory);
 
 export default router;

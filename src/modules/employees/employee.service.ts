@@ -9,6 +9,7 @@ import {
     OnboardStep5Input
 } from './employee.validator';
 import { AppError, NotFoundError } from '../../common/errors/AppError';
+import { uploadFile } from '../../common/utils/s3';
 
 export class EmployeeService {
     private employeeRepository: EmployeeRepository;
@@ -93,5 +94,33 @@ export class EmployeeService {
 
         return this.employeeRepository.updateEmployee(id, companyId, data);
     }
+
+    async uploadEmployeeDocument(
+        employeeId: string,
+        companyId: string,
+        userId: string,
+        file: Express.Multer.File,
+        documentType: string
+    ) {
+        // 1. Verify employee belongs to company
+        await this.getEmployeeDetail(employeeId, companyId);
+
+        // 2. Create path: companyId/employeeId/timestamp-fileName
+        const fileName = `${Date.now()}-${file.originalname}`;
+        const path = `${companyId}/${employeeId}/${fileName}`;
+
+        // 3. Upload to Supabase via S3 tool
+        const fileUrl = await uploadFile(file, path);
+
+        // 4. Save to DB
+        return this.employeeRepository.addEmployeeDocument({
+            employeeId,
+            documentType,
+            fileUrl,
+            fileName: file.originalname,
+            uploadedBy: userId
+        });
+    }
 }
+
 
