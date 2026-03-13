@@ -48,6 +48,9 @@ export const attendanceFilterSchema = z.object({
     startDate: z.string().refine((val) => !isNaN(Date.parse(val))).optional(),
     endDate: z.string().refine((val) => !isNaN(Date.parse(val))).optional(),
     employeeId: z.string().uuid().optional(),
+    search: z.string().optional(),
+    page: z.string().or(z.number()).transform(v => Number(v)).optional(),
+    limit: z.string().or(z.number()).transform(v => Number(v)).optional(),
 });
 
 export const validateCreateShift = validateRequest(createShiftSchema);

@@ -40,8 +40,7 @@ export class AttendanceController {
     };
 
     history = async (req: Request, res: Response) => {
-        const { companyId, userId } = req.user!;
-        const result = await this.service.getAttendanceHistory(companyId, userId, req.query as any);
+        const result = await this.service.getAttendanceHistory(req.user!, req.query as any);
         res.json({ success: true, data: result });
     };
 }

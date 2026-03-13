@@ -108,17 +108,19 @@ export class AttendanceService {
         return this.repository.updateCheckOut(log.id, data);
     }
 
-    async getAttendanceHistory(companyId: string, userId: string, filter: AttendanceFilterInput) {
-        // If no explicit employeeId filter provided, scope to the requesting user's own employee record
+    async getAttendanceHistory(user: { companyId: string, userId: string, role: string }, filter: AttendanceFilterInput) {
         let employeeId = filter.employeeId;
 
-        if (!employeeId) {
-            const employee = await prisma.employee.findUnique({ where: { userId } });
+        // If no employeeId is provided and the user is NOT an admin, default to their own logs
+        const isAdmin = user.role.toUpperCase() === 'ADMIN' || user.role.toUpperCase() === 'COMPANY_ADMIN';
+        
+        if (!employeeId && !isAdmin) {
+            const employee = await prisma.employee.findUnique({ where: { userId: user.userId } });
             if (employee) {
                 employeeId = employee.id;
             }
         }
 
-        return this.repository.listAttendance(companyId, { ...filter, employeeId });
+        return this.repository.listAttendance(user.companyId, { ...filter, employeeId });
     }
 }

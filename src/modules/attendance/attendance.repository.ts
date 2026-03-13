@@ -100,26 +100,47 @@ export class AttendanceRepository {
     }
 
     async listAttendance(companyId: string, filter: AttendanceFilterInput) {
-        return prisma.attendanceLog.findMany({
-            where: {
-                employee: { companyId },
-                employeeId: filter.employeeId,
-                attendanceDate: {
-                    gte: filter.startDate ? new Date(filter.startDate) : undefined,
-                    lte: filter.endDate ? new Date(filter.endDate) : undefined
-                }
+        const where: any = {
+            employee: {
+                companyId,
+                ...(filter.search ? {
+                    OR: [
+                        { employeeCode: { contains: filter.search as string, mode: 'insensitive' as const } },
+                        { user: { email: { contains: filter.search as string, mode: 'insensitive' as const } } }
+                    ]
+                } : {})
             },
-            include: {
-                employee: {
-                    select: {
-                        employeeCode: true,
-                        user: { select: { email: true } }
-                    }
+            ...(filter.employeeId ? { employeeId: filter.employeeId } : {}),
+            attendanceDate: {
+                gte: filter.startDate ? new Date(filter.startDate) : undefined,
+                lte: filter.endDate ? new Date(filter.endDate) : undefined
+            }
+        };
+
+        const page = Number(filter.page) || 1;
+        const limit = Number(filter.limit) || 10;
+        const skip = (page - 1) * limit;
+
+        const [total, records] = await Promise.all([
+            prisma.attendanceLog.count({ where }),
+            prisma.attendanceLog.findMany({
+                where,
+                include: {
+                    employee: {
+                        select: {
+                            employeeCode: true,
+                            user: { select: { email: true } }
+                        }
+                    },
+                    shift: { select: { name: true } },
+                    workLocation: { select: { name: true } }
                 },
-                shift: { select: { name: true } },
-                workLocation: { select: { name: true } }
-            },
-            orderBy: { attendanceDate: 'desc' }
-        });
+                orderBy: { attendanceDate: 'desc' },
+                skip,
+                take: limit
+            })
+        ]);
+
+        return { total, records };
     }
 }
