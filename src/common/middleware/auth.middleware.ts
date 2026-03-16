@@ -33,3 +33,20 @@ export const authenticate = (req: Request, res: Response, next: NextFunction) =>
         throw new AuthenticationError('Invalid or expired token');
     }
 };
+
+export const requireRole = (roles: string[]) => {
+    return (req: Request, res: Response, next: NextFunction) => {
+
+        if (!req.user) {
+            throw new AuthenticationError("User not authenticated");
+        }
+
+        if (!roles.includes(req.user.role)) {
+            return res.status(403).json({
+                message: "Access denied"
+            });
+        }
+
+        next();
+    };
+};

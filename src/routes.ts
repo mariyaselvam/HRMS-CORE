@@ -39,6 +39,11 @@ router.use('/payroll', payrollRoutes);
 // Dashboard routes
 router.use('/dashboard', dashboardRoutes);
 
+// Settings routes
+import settingsRoutes from './modules/settings/settings.routes';
+router.use('/settings', settingsRoutes);
+
+
 // Health check
 router.get('/health', (req, res) => {
     res.json({ status: 'ok' });

@@ -28,6 +28,7 @@ model Company {
   users         User[]
   workLocations WorkLocation[]
   workflows     Workflow[]
+  systemSettings SystemSetting[]
 
   @@map("companies")
 }
@@ -603,3 +604,20 @@ model AuditLog {
 
   @@map("audit_logs")
 }
+
+model SystemSetting {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @map("company_id") @db.Uuid
+  category    String
+  key         String
+  value       Json
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  company     Company  @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, key])
+  @@map("system_settings")
+}
+
