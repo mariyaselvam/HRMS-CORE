@@ -40,4 +40,15 @@ export class PayrollController {
         const result = await this.service.finalizePayroll(companyId, id);
         res.json({ success: true, data: result });
     };
+
+    downloadPayslip = async (req: Request, res: Response) => {
+        const { companyId, role, userId } = req.user!;
+        const recordId = req.params.id as string;
+
+        const pdfBuffer = await this.service.generatePayslipPdf(recordId, companyId, role, userId);
+
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `attachment; filename=payslip-${recordId}.pdf`);
+        res.send(pdfBuffer);
+    };
 }

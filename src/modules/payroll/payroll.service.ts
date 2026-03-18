@@ -1,3 +1,7 @@
+import fs from 'fs';
+import path from 'path';
+import Handlebars from 'handlebars';
+import { PDFDocument } from 'pdf-lib';
 import { PayrollRepository } from './payroll.repository';
 import {
     SalaryStructureInput,
@@ -180,5 +184,85 @@ export class PayrollService {
         if (cycle.status === 'finalized') throw new AppError('Already finalized', 400);
 
         return this.repository.finalizeCycle(cycleId);
+    }
+
+    async generatePayslipPdf(recordId: string, observerCompanyId: string, observerRole: string, observerUserId: string) {
+        const record = await this.repository.getFullRecordContext(recordId);
+        if (!record) throw new NotFoundError('Payroll record not found');
+
+        // Security check: must be admin of the company OR the employee themselves
+        const isAdmin = observerRole === 'Admin' || observerRole === 'Manager';
+        const isOwner = record.employee.userId === observerUserId;
+        const isSameCompany = record.payrollCycle.companyId === observerCompanyId;
+
+        if (!isSameCompany || (!isAdmin && !isOwner)) {
+            throw new AppError('You do not have permission to access this payslip', 403);
+        }
+
+        // Prepare data for template
+        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+        const cycleDate = new Date(record.payrollCycle.month);
+        
+        const totalDeductions = Number(record.attendanceDeduction) + 
+                               Number(record.pfDeduction) + 
+                               Number(record.esiDeduction) + 
+                               Number(record.ptDeduction) + 
+                               Number(record.incomeTax) + 
+                               Number(record.otherDeductions);
+
+        const data = {
+            companyName: record.payrollCycle.company.name,
+            companyAddress: record.payrollCycle.company.timezone, // Placeholder for actual address
+            month: monthNames[cycleDate.getMonth()],
+            year: cycleDate.getFullYear(),
+            employeeName: `${record.employee.personalDetails?.firstName || ''} ${record.employee.personalDetails?.lastName || ''}`.trim() || record.employee.user.email,
+            employeeCode: record.employee.employeeCode,
+            designation: record.employee.jobDetails?.designation || 'N/A',
+            departmentName: record.employee.department.name,
+            bankName: record.employee.bankDetails?.bankName || 'N/A',
+            accountNumber: record.employee.bankDetails?.accountNumber || 'N/A',
+            workingDays: record.workingDays,
+            presentDays: record.presentDays,
+            basicSalary: record.basicSalary,
+            hra: record.hra,
+            transportAllowance: record.transportAllowance,
+            otherAllowances: record.otherAllowances,
+            grossSalary: record.grossSalary,
+            attendanceDeduction: record.attendanceDeduction,
+            pfDeduction: record.pfDeduction,
+            esiDeduction: record.esiDeduction,
+            ptDeduction: record.ptDeduction,
+            incomeTax: Number(record.incomeTax) + Number(record.otherDeductions),
+            totalDeductions: totalDeductions.toFixed(2),
+            currency: 'INR', // Avoided ₹ symbol as it causes encoding errors in basic PDF fonts
+            netSalary: record.netSalary,
+            netSalaryInWords: 'Amount in words logic' // Simplification
+        };
+
+        // Load and compile template
+        const templatePath = path.join(__dirname, 'templates', 'payslip.hbs');
+        const templateHtml = fs.readFileSync(templatePath, 'utf8');
+        const template = Handlebars.compile(templateHtml);
+        const html = template(data);
+
+        // For now, we generate a basic PDF with text using pdf-lib 
+        // since html-pdf-node requires heavy dependencies or puppeteer
+        // In a real prod environment we'd use a high fidelity HTML-to-PDF converter
+        const pdfDoc = await PDFDocument.create();
+        const page = pdfDoc.addPage();
+        const { height } = page.getSize();
+        
+        // Very basic PDF implementation just to show the result
+        // A better approach in production would be using 'html-pdf' or equivalent
+        page.drawText(`PAYSLIP - ${data.month} ${data.year}`, { x: 50, y: height - 50, size: 20 });
+        page.drawText(`Company: ${data.companyName}`, { x: 50, y: height - 80, size: 12 });
+        page.drawText(`Employee: ${data.employeeName} (${data.employeeCode})`, { x: 50, y: height - 100, size: 12 });
+        page.drawText(`--------------------------------------------------`, { x: 50, y: height - 120, size: 12 });
+        page.drawText(`Gross Salary: ${data.currency} ${data.grossSalary}`, { x: 50, y: height - 140, size: 12 });
+        page.drawText(`Total Deductions: ${data.currency} ${data.totalDeductions}`, { x: 50, y: height - 160, size: 12 });
+        page.drawText(`Net Payable: ${data.currency} ${data.netSalary}`, { x: 50, y: height - 190, size: 15 });
+
+        const pdfBytes = await pdfDoc.save();
+        return Buffer.from(pdfBytes);
     }
 }

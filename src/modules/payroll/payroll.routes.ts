@@ -20,5 +20,6 @@ router.get('/salary-structure/:id', controller.getSalaryStructure);
 router.post('/generate', validateGeneratePayroll, controller.generate);
 router.get('/records', controller.listRecords);
 router.patch('/cycles/:id/finalize', controller.finalize);
+router.get('/records/:id/download', controller.downloadPayslip);
 
 export default router;

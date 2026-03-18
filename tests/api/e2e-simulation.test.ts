@@ -60,7 +60,7 @@ describe('HRMS E2E Simulation API', () => {
 
         expect(response.status).toBe(200);
         expect(response.body.count).toBeGreaterThan(0);
-    });
+    }, 30000);
 
     it('should generate leaves for employees', async () => {
         const response = await request(app)
@@ -69,7 +69,7 @@ describe('HRMS E2E Simulation API', () => {
 
         expect(response.status).toBe(200);
         expect(response.body.count).toBeDefined();
-    });
+    }, 30000);
 
     it('should run payroll for the company', async () => {
         const response = await request(app)

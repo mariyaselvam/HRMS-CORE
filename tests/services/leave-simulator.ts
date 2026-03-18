@@ -1,6 +1,7 @@
 import prisma from '../../src/common/utils/prisma';
 import { leaveTypeFactory, leaveRequestFactory, leaveBalanceFactory } from '../factories/leave.factory';
 import { faker } from '@faker-js/faker';
+import { LeaveType } from '@prisma/client';
 
 export class LeaveSimulator {
     /**
@@ -9,7 +10,7 @@ export class LeaveSimulator {
     async setupLeaveBasics(companyId: string, employeeIds: string[]) {
         // 1. Create default leave types if they don't exist
         const names = ['Casual Leave', 'Sick Leave', 'Earned Leave'];
-        const leaveTypes = [];
+        const leaveTypes: LeaveType[] = [];
 
         for (const name of names) {
             let lt = await prisma.leaveType.findFirst({ where: { companyId, name } });
@@ -51,13 +52,15 @@ export class LeaveSimulator {
      */
     async simulateRequests(employeeIds: string[], count: number) {
         const requests = [];
-        const leaveTypes = await prisma.leaveType.findMany({
+        const leaveTypes: LeaveType[] = await prisma.leaveType.findMany({
             where: { name: { in: ['Casual Leave', 'Sick Leave'] } }
         });
 
         for (let i = 0; i < count; i++) {
             const empId = faker.helpers.arrayElement(employeeIds);
             const lt = faker.helpers.arrayElement(leaveTypes);
+
+            if (!lt) continue;
 
             const startDate = faker.date.recent({ days: 30 });
             const endDate = new Date(startDate);

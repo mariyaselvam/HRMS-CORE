@@ -132,4 +132,26 @@ export class PayrollRepository {
             }
         });
     }
+
+    async getFullRecordContext(recordId: string) {
+        return prisma.payrollRecord.findUnique({
+            where: { id: recordId },
+            include: {
+                payrollCycle: {
+                    include: {
+                        company: true
+                    }
+                },
+                employee: {
+                    include: {
+                        user: true,
+                        department: true,
+                        personalDetails: true,
+                        bankDetails: true,
+                        jobDetails: true
+                    }
+                }
+            }
+        });
+    }
 }
