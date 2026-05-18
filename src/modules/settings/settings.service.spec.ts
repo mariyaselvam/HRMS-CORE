@@ -26,7 +26,7 @@ describe('SettingsService', () => {
       const mockSettings = [
         { category: 'general', key: 'theme', value: 'dark' },
         { category: 'general', key: 'language', value: 'en' },
-        { category: 'financial', key: 'currency', value: 'USD' },
+        { category: 'general', key: 'hrEmail', value: 'hr@example.com' },
       ];
 
       (prisma.systemSetting.findMany as jest.Mock).mockResolvedValue(mockSettings);
@@ -37,8 +37,7 @@ describe('SettingsService', () => {
         where: { companyId: mockCompanyId },
       });
       expect(result).toEqual({
-        general: { theme: 'dark', language: 'en' },
-        financial: { currency: 'USD' },
+        general: { theme: 'dark', language: 'en', hrEmail: 'hr@example.com' },
       });
     });
 
@@ -71,7 +70,7 @@ describe('SettingsService', () => {
 
   describe('updateSettingsByCategory', () => {
     it('should upsert settings and return the updated category settings', async () => {
-      const payload = { theme: 'light', timezone: 'UTC' };
+      const payload = { theme: 'light', hrEmail: 'hr@example.com' };
 
       // Mock the upsert calls
       (prisma.systemSetting.upsert as jest.Mock).mockImplementation((args) => args);
@@ -82,7 +81,7 @@ describe('SettingsService', () => {
       // Mock the findMany call for the return statement (getSettingsByCategory)
       const mockUpdatedSettings = [
         { category: 'general', key: 'theme', value: 'light' },
-        { category: 'general', key: 'timezone', value: 'UTC' },
+        { category: 'general', key: 'hrEmail', value: 'hr@example.com' },
       ];
       (prisma.systemSetting.findMany as jest.Mock).mockResolvedValue(mockUpdatedSettings);
 
@@ -99,13 +98,13 @@ describe('SettingsService', () => {
 
       // Check second upsert call
       expect(prisma.systemSetting.upsert).toHaveBeenNthCalledWith(2, {
-        where: { companyId_key: { companyId: mockCompanyId, key: 'timezone' } },
-        update: { value: 'UTC', category: 'general' },
-        create: { companyId: mockCompanyId, category: 'general', key: 'timezone', value: 'UTC' },
+        where: { companyId_key: { companyId: mockCompanyId, key: 'hrEmail' } },
+        update: { value: 'hr@example.com', category: 'general' },
+        create: { companyId: mockCompanyId, category: 'general', key: 'hrEmail', value: 'hr@example.com' },
       });
 
       expect(prisma.$transaction).toHaveBeenCalledTimes(1);
-      expect(result).toEqual({ theme: 'light', timezone: 'UTC' });
+      expect(result).toEqual({ theme: 'light', hrEmail: 'hr@example.com' });
     });
   });
 });

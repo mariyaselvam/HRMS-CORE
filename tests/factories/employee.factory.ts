@@ -20,7 +20,7 @@ export class EmployeeFactory extends BaseFactory<Employee> {
         };
     }
 
-    async createFull(companyId: string, departmentId: string, roleId: string, overrides: any = {}) {
+    async createFull(companyId: string, departmentId: string, workLocationId: string, roleId: string, overrides: any = {}) {
         const email = overrides.email || faker.internet.email();
         const passwordHash = await bcrypt.hash('Password123!', 10);
 
@@ -45,6 +45,7 @@ export class EmployeeFactory extends BaseFactory<Employee> {
         const employee = await this.create({
             companyId,
             departmentId,
+            workLocationId,
             userId: user.id,
             managerId,
             ...overrides,

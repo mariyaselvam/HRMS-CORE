@@ -30,9 +30,21 @@ export class SettingsService {
     }
 
     async updateSettingsByCategory(companyId: string, category: string, payload: Record<string, any>) {
+        const payloadKeys = Object.keys(payload);
         const updates = [];
 
-        // Upsert each key in the payload for this category
+        // 1. Delete keys that are NOT in the payload for this category
+        updates.push(
+            prisma.systemSetting.deleteMany({
+                where: {
+                    companyId,
+                    category,
+                    key: { notIn: payloadKeys }
+                }
+            })
+        );
+
+        // 2. Upsert each key in the payload
         for (const [key, value] of Object.entries(payload)) {
             updates.push(
                 prisma.systemSetting.upsert({

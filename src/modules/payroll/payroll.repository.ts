@@ -33,16 +33,17 @@ export class PayrollRepository {
     }
 
     // --- Payroll Cycles ---
-    async findCycle(companyId: string, month: Date) {
+    async findCycle(companyId: string, month: Date, workLocationId: string) {
         return prisma.payrollCycle.findFirst({
-            where: { companyId, month }
+            where: { companyId, workLocationId, month }
         });
     }
 
-    async createCycle(companyId: string, month: Date, adminUserId: string) {
+    async createCycle(companyId: string, month: Date, adminUserId: string, workLocationId: string) {
         return prisma.payrollCycle.create({
             data: {
                 companyId,
+                workLocationId,
                 month,
                 status: 'draft',
                 triggeredBy: adminUserId
@@ -91,6 +92,8 @@ export class PayrollRepository {
                 employee: {
                     select: {
                         employeeCode: true,
+                        department: { select: { name: true } },
+                        personalDetails: { select: { firstName: true, lastName: true } },
                         user: { select: { email: true } }
                     }
                 }

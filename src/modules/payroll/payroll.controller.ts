@@ -23,14 +23,16 @@ export class PayrollController {
 
     generate = async (req: Request, res: Response) => {
         const { companyId, userId } = req.user!;
-        const result = await this.service.generateMonthlyPayroll(companyId, userId, req.body);
+        const branchId = req.activeBranchId;
+        const result = await this.service.generateMonthlyPayroll(companyId, userId, branchId, req.body);
         res.status(201).json({ success: true, data: result });
     };
 
     listRecords = async (req: Request, res: Response) => {
         const companyId = req.user!.companyId;
+        const branchId = req.activeBranchId;
         const { month } = req.query as { month: string };
-        const result = await this.service.getCycleRecords(companyId, month);
+        const result = await this.service.getCycleRecords(companyId, branchId, month);
         res.json({ success: true, data: result });
     };
 

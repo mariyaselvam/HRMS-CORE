@@ -46,22 +46,27 @@ export class PayrollService {
     }
 
     // --- Payroll Generation ---
-    async generateMonthlyPayroll(companyId: string, adminUserId: string, data: GeneratePayrollInput) {
-        const monthDate = new Date(`${data.month}-01`);
-
-        // 1. Check if cycle already exists
-        const existingCycle = await this.repository.findCycle(companyId, monthDate);
-        if (existingCycle) {
-            throw new AppError(`Payroll for ${data.month} is already generated (${existingCycle.status})`, 400);
+    async generateMonthlyPayroll(companyId: string, adminUserId: string, workLocationId: string | undefined, data: GeneratePayrollInput) {
+        if (!workLocationId) {
+            throw new AppError('Branch context (workLocationId) is required for payroll generation', 400);
         }
 
-        // 2. Create Cycle
-        const cycle = await this.repository.createCycle(companyId, monthDate, adminUserId);
+        const monthDate = new Date(`${data.month}-01`);
 
-        // 3. Get all active employees with their details
+        // 1. Check if cycle already exists for this branch
+        const existingCycle = await this.repository.findCycle(companyId, monthDate, workLocationId);
+        if (existingCycle) {
+            throw new AppError(`Payroll for ${data.month} in this branch is already generated (${existingCycle.status})`, 400);
+        }
+
+        // 2. Create Cycle for this branch
+        const cycle = await this.repository.createCycle(companyId, monthDate, adminUserId, workLocationId);
+
+        // 3. Get all active employees for this branch
         const employees = await prisma.employee.findMany({
             where: {
                 companyId,
+                workLocationId,
                 employmentStatus: 'active',
                 profileCompletion: { gte: 70 } // Only pick reasonably completed profiles
             },
@@ -73,10 +78,14 @@ export class PayrollService {
         const monthStart = new Date(monthDate);
         const monthEnd = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 0);
 
-        // 4. Fetch holidays for this month
+        // 4. Fetch holidays for this branch/company this month
         const holidays = await prisma.holiday.findMany({
             where: {
                 companyId,
+                OR: [
+                    { workLocationId: null }, // Company wide
+                    { workLocationId } // Branch specific
+                ],
                 date: { gte: monthStart, lte: monthEnd }
             }
         });
@@ -168,9 +177,11 @@ export class PayrollService {
         return { cycle, recordsCreated: results.length };
     }
 
-    async getCycleRecords(companyId: string, month: string) {
+    async getCycleRecords(companyId: string, workLocationId: string | undefined, month: string) {
+        if (!workLocationId) return [];
+        
         const monthDate = new Date(`${month}-01`);
-        const cycle = await this.repository.findCycle(companyId, monthDate);
+        const cycle = await this.repository.findCycle(companyId, monthDate, workLocationId);
         if (!cycle) return [];
 
         return this.repository.getPayrollRecords(cycle.id);
@@ -212,7 +223,7 @@ export class PayrollService {
 
         const data = {
             companyName: record.payrollCycle.company.name,
-            companyAddress: record.payrollCycle.company.timezone, // Placeholder for actual address
+            companyAddress: record.payrollCycle.company.address || 'N/A', 
             month: monthNames[cycleDate.getMonth()],
             year: cycleDate.getFullYear(),
             employeeName: `${record.employee.personalDetails?.firstName || ''} ${record.employee.personalDetails?.lastName || ''}`.trim() || record.employee.user.email,

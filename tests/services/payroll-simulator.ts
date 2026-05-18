@@ -3,22 +3,23 @@ import { payrollCycleFactory, payrollRecordFactory } from '../factories/payroll.
 
 export class PayrollSimulator {
     /**
-     * Generates a monthly payroll for an entire company.
+     * Generates a monthly payroll for an entire branch.
      */
-    async runMonthlyPayroll(companyId: string, year: number, month: number) {
+    async runMonthlyPayroll(companyId: string, workLocationId: string, year: number, month: number) {
         const startDate = new Date(year, month - 1, 1);
         const endDate = new Date(year, month, 0);
 
         // 1. Create a payroll cycle
         const cycle = await payrollCycleFactory.create({
             companyId,
+            workLocationId,
             month: startDate,
             status: 'finalized',
         });
 
-        // 2. Process all company employees
+        // 2. Process all branch employees
         const employees = await prisma.employee.findMany({
-            where: { companyId },
+            where: { companyId, workLocationId },
             include: {
                 attendanceLogs: {
                     where: {
