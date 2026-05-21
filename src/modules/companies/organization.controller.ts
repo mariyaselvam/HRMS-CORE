@@ -16,7 +16,8 @@ export class OrganizationController {
 
     getDepartments = async (req: Request, res: Response) => {
         const companyId = req.user!.companyId;
-        const departments = await this.orgService.getDepartments(companyId);
+        const locationId = req.query.locationId as string | undefined;
+        const departments = await this.orgService.getDepartments(companyId, locationId);
         res.json({ success: true, data: departments });
     };
 
@@ -54,7 +55,8 @@ export class OrganizationController {
 
     getTeams = async (req: Request, res: Response) => {
         const companyId = req.user!.companyId;
-        const teams = await this.orgService.getTeams(companyId);
+        const locationId = req.query.locationId as string | undefined;
+        const teams = await this.orgService.getTeams(companyId, locationId);
         res.json({ success: true, data: teams });
     };
 

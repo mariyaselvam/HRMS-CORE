@@ -93,30 +93,34 @@ model RolePermission {
 }
 
 model Department {
-  id        String     @id @default(uuid()) @db.Uuid
-  companyId String     @map("company_id") @db.Uuid
-  name      String
-  managerId String?    @map("manager_id") @db.Uuid
-  createdAt DateTime   @default(now()) @map("created_at")
-  updatedAt DateTime   @updatedAt @map("updated_at")
-  company   Company    @relation(fields: [companyId], references: [id])
-  manager   Employee?  @relation("DepartmentManager", fields: [managerId], references: [id])
-  employees Employee[] @relation("EmployeeDepartment")
-  teams     Team[]
+  id             String        @id @default(uuid()) @db.Uuid
+  companyId      String        @map("company_id") @db.Uuid
+  workLocationId String?       @map("work_location_id") @db.Uuid
+  name           String
+  managerId      String?       @map("manager_id") @db.Uuid
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  company        Company       @relation(fields: [companyId], references: [id])
+  workLocation   WorkLocation? @relation(fields: [workLocationId], references: [id])
+  manager        Employee?     @relation("DepartmentManager", fields: [managerId], references: [id])
+  employees      Employee[]    @relation("EmployeeDepartment")
+  teams          Team[]
 
   @@map("departments")
 }
 
 model Team {
-  id           String     @id @default(uuid()) @db.Uuid
-  companyId    String     @map("company_id") @db.Uuid
-  departmentId String     @map("department_id") @db.Uuid
-  name         String
-  createdAt    DateTime   @default(now()) @map("created_at")
-  updatedAt    DateTime   @updatedAt @map("updated_at")
-  employees    Employee[]
-  company      Company    @relation(fields: [companyId], references: [id])
-  department   Department @relation(fields: [departmentId], references: [id])
+  id             String        @id @default(uuid()) @db.Uuid
+  companyId      String        @map("company_id") @db.Uuid
+  departmentId   String        @map("department_id") @db.Uuid
+  workLocationId String?       @map("work_location_id") @db.Uuid
+  name           String
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+  employees      Employee[]
+  company        Company       @relation(fields: [companyId], references: [id])
+  department     Department    @relation(fields: [departmentId], references: [id])
+  workLocation   WorkLocation? @relation(fields: [workLocationId], references: [id])
 
   @@map("teams")
 }
@@ -136,6 +140,8 @@ model WorkLocation {
   holidays       Holiday[]
   payrollCycles  PayrollCycle[]
   users          User[]
+  departments    Department[]
+  teams          Team[]
   company        Company         @relation(fields: [companyId], references: [id])
 
   @@map("work_locations")

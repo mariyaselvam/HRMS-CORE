@@ -8,6 +8,8 @@ export const createHolidaySchema = z.object({
     name: z.string().min(1, "Holiday name is required"),
     date: z.string().refine((val) => !isNaN(Date.parse(val)), "Invalid holiday date"),
     isOptional: z.boolean().optional().default(false),
+    workLocationId: z.string().uuid("Invalid branch ID").optional().nullable(),
+    allBranches: z.boolean().optional(),
 });
 
 /**

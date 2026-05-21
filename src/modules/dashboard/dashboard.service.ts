@@ -7,18 +7,20 @@ export class DashboardService {
         this.repository = new DashboardRepository();
     }
 
-    async getAdminSummary(companyId: string) {
-        const [employeeStats, attendanceToday, pendingRequests, payrollSummary] = await Promise.all([
-            this.repository.getEmployeeStats(companyId),
-            this.repository.getAttendanceToday(companyId),
-            this.repository.getPendingRequests(companyId),
-            this.repository.getPayrollSummary(companyId)
+    async getAdminSummary(companyId: string, locationId?: string) {
+        const [employeeStats, attendanceToday, pendingRequests, payrollSummary, attendanceOverview] = await Promise.all([
+            this.repository.getEmployeeStats(companyId, locationId),
+            this.repository.getAttendanceToday(companyId, locationId),
+            this.repository.getPendingRequests(companyId, locationId),
+            this.repository.getPayrollSummary(companyId, locationId),
+            this.repository.getAttendanceOverview(companyId, locationId)
         ]);
 
         return {
             employees: employeeStats,
             attendance: {
-                presentToday: attendanceToday
+                presentToday: attendanceToday,
+                overview: attendanceOverview
             },
             approvalsPending: pendingRequests,
             latestPayroll: payrollSummary

@@ -12,8 +12,8 @@ export class OrganizationService {
         return this.orgRepository.createDepartment(companyId, data);
     }
 
-    async getDepartments(companyId: string) {
-        return this.orgRepository.findDepartmentsByCompany(companyId);
+    async getDepartments(companyId: string, locationId?: string) {
+        return this.orgRepository.findDepartmentsByCompany(companyId, locationId);
     }
 
     async updateDepartment(id: string, companyId: string, data: UpdateDepartmentInput) {
@@ -36,8 +36,8 @@ export class OrganizationService {
         return this.orgRepository.findLocationsByCompany(companyId);
     }
 
-    async getTeams(companyId: string) {
-        return this.orgRepository.findTeamsByCompany(companyId);
+    async getTeams(companyId: string, locationId?: string) {
+        return this.orgRepository.findTeamsByCompany(companyId, locationId);
     }
 
     async updateTeam(id: string, companyId: string, data: any) {

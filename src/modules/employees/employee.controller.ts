@@ -45,7 +45,8 @@ export class EmployeeController {
 
     list = async (req: Request, res: Response) => {
         const companyId = req.user!.companyId;
-        const result = await this.employeeService.getAllEmployees(companyId);
+        const locationId = req.query.locationId as string | undefined;
+        const result = await this.employeeService.getAllEmployees(companyId, locationId);
         res.json({ success: true, data: result });
     };
 

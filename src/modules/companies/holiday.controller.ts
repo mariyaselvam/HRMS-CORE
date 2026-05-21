@@ -17,7 +17,8 @@ export class HolidayController {
     list = async (req: Request, res: Response) => {
         const companyId = req.user!.companyId;
         const year = req.query.year ? parseInt(req.query.year as string) : undefined;
-        const result = await this.service.getHolidays(companyId, year);
+        const locationId = req.query.locationId as string | undefined;
+        const result = await this.service.getHolidays(companyId, year, locationId);
         res.json({ success: true, data: result });
     };
 

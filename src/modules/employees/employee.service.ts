@@ -58,8 +58,8 @@ export class EmployeeService {
         return this.employeeRepository.upsertStatutoryDetails(employeeId, data);
     }
 
-    async getAllEmployees(companyId: string) {
-        return this.employeeRepository.listEmployees(companyId);
+    async getAllEmployees(companyId: string, locationId?: string) {
+        return this.employeeRepository.listEmployees(companyId, locationId);
     }
 
     async getEmployeeDetail(id: string, companyId: string) {

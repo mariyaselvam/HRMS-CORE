@@ -10,7 +10,8 @@ export class DashboardController {
 
     getSummary = async (req: Request, res: Response) => {
         const { companyId } = req.user!;
-        const result = await this.service.getAdminSummary(companyId);
+        const locationId = req.query.locationId as string | undefined;
+        const result = await this.service.getAdminSummary(companyId, locationId);
         res.json({ success: true, data: result });
     };
 }

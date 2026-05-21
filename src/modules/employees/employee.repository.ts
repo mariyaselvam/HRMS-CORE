@@ -204,9 +204,13 @@ export class EmployeeRepository {
         });
     }
 
-    async listEmployees(companyId: string) {
+    async listEmployees(companyId: string, locationId?: string) {
+        const where: any = { companyId };
+        if (locationId) {
+            where.workLocationId = locationId;
+        }
         return prisma.employee.findMany({
-            where: { companyId },
+            where,
             include: {
                 user: { select: { email: true } },
                 department: { select: { name: true } },

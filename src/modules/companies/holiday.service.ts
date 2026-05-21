@@ -9,9 +9,13 @@ export class HolidayService {
         this.repository = new HolidayRepository();
     }
 
-    async addHoliday(companyId: string, data: CreateHolidayInput) {
+    async addHoliday(companyId: string, data: any) {
+        if (data.allBranches) {
+            return this.repository.createHolidayForAllBranches(companyId, data);
+        }
+
         const date = new Date(data.date);
-        const existing = await this.repository.findHolidayByDate(companyId, date);
+        const existing = await this.repository.findHolidayByDate(companyId, date, data.workLocationId);
 
         if (existing) {
             throw new AppError('A holiday already exists on this date', 400);
@@ -20,8 +24,8 @@ export class HolidayService {
         return this.repository.createHoliday(companyId, data);
     }
 
-    async getHolidays(companyId: string, year?: number) {
-        return this.repository.listHolidays(companyId, year);
+    async getHolidays(companyId: string, year?: number, locationId?: string) {
+        return this.repository.listHolidays(companyId, year, locationId);
     }
 
     async removeHoliday(id: string, companyId: string) {

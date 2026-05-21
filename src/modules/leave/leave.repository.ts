@@ -66,19 +66,34 @@ export class LeaveRepository {
         });
     }
 
-    async listRequests(companyId: string, employeeId?: string) {
+    async listRequests(companyId: string, employeeId?: string, locationId?: string) {
+        const where: any = {
+            employee: {
+                companyId
+            }
+        };
+
+        if (employeeId) {
+            where.employee.id = employeeId;
+        }
+
+        if (locationId) {
+            where.employee.workLocationId = locationId;
+        }
+
         return prisma.leaveRequest.findMany({
-            where: {
-                employee: {
-                    companyId,
-                    id: employeeId
-                }
-            },
+            where,
             include: {
                 employee: {
                     select: {
                         employeeCode: true,
-                        user: { select: { email: true } }
+                        user: { select: { email: true } },
+                        personalDetails: {
+                            select: {
+                                firstName: true,
+                                lastName: true
+                            }
+                        }
                     }
                 },
                 leaveType: { select: { name: true } }
@@ -101,6 +116,21 @@ export class LeaveRepository {
                 status,
                 approvedBy,
                 approvedAt: new Date()
+            },
+            include: {
+                employee: {
+                    select: {
+                        employeeCode: true,
+                        user: { select: { email: true } },
+                        personalDetails: {
+                            select: {
+                                firstName: true,
+                                lastName: true
+                            }
+                        }
+                    }
+                },
+                leaveType: { select: { name: true } }
             }
         });
     }

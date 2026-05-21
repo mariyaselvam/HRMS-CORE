@@ -36,7 +36,8 @@ export class LeaveController {
 
     allRequests = async (req: Request, res: Response) => {
         const companyId = req.user!.companyId;
-        const result = await this.service.getRequests(companyId);
+        const locationId = req.query.locationId as string | undefined;
+        const result = await this.service.getRequests(companyId, undefined, locationId);
         res.json({ success: true, data: result });
     };
 

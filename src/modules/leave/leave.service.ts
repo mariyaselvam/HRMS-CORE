@@ -55,13 +55,13 @@ export class LeaveService {
     }
 
     // List requests
-    async getRequests(companyId: string, userId?: string) {
+    async getRequests(companyId: string, userId?: string, locationId?: string) {
         let employeeId = undefined;
         if (userId) {
             const employee = await prisma.employee.findUnique({ where: { userId } });
             employeeId = employee?.id;
         }
-        return this.repository.listRequests(companyId, employeeId);
+        return this.repository.listRequests(companyId, employeeId, locationId);
     }
 
     // Admin/Manager: Approve/Reject

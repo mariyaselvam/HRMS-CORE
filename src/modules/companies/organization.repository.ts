@@ -7,15 +7,23 @@ export class OrganizationRepository {
             data: {
                 name: data.name,
                 companyId: companyId,
-                managerId: data.managerId
+                managerId: data.managerId,
+                workLocationId: data.workLocationId
             }
         });
     }
 
-    async findDepartmentsByCompany(companyId: string) {
+    async findDepartmentsByCompany(companyId: string, locationId?: string) {
+        const where: any = { companyId };
+        if (locationId) {
+            where.workLocationId = locationId;
+        }
         return prisma.department.findMany({
-            where: { companyId },
-            include: { _count: { select: { teams: true, employees: true } } }
+            where,
+            include: {
+                workLocation: { select: { id: true, name: true } },
+                _count: { select: { teams: true, employees: true } }
+            }
         });
     }
 
@@ -24,7 +32,8 @@ export class OrganizationRepository {
             where: { id, companyId },
             data: {
                 name: data.name,
-                managerId: data.managerId
+                managerId: data.managerId,
+                workLocationId: data.workLocationId
             }
         });
     }
@@ -40,7 +49,8 @@ export class OrganizationRepository {
             data: {
                 name: data.name,
                 companyId: companyId,
-                departmentId: data.departmentId
+                departmentId: data.departmentId,
+                workLocationId: data.workLocationId
             }
         });
     }
@@ -64,11 +74,24 @@ export class OrganizationRepository {
         });
     }
 
-    async findTeamsByCompany(companyId: string) {
+    async findTeamsByCompany(companyId: string, locationId?: string) {
+        const where: any = { companyId };
+        if (locationId) {
+            where.workLocationId = locationId;
+        }
         return prisma.team.findMany({
-            where: { companyId },
+            where,
             include: {
-                department: { select: { name: true } },
+                department: {
+                    select: {
+                        name: true
+                    }
+                },
+                workLocation: {
+                    select: {
+                        name: true
+                    }
+                },
                 _count: { select: { employees: true } }
             }
         });
@@ -79,7 +102,8 @@ export class OrganizationRepository {
             where: { id, companyId },
             data: {
                 name: data.name,
-                departmentId: data.departmentId
+                departmentId: data.departmentId,
+                workLocationId: data.workLocationId
             }
         });
     }

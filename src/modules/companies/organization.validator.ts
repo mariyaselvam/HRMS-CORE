@@ -7,6 +7,7 @@ import { validateRequest } from '../../common/middleware/validation.middleware';
 export const createDepartmentSchema = z.object({
     name: z.string().min(1, "Department name is required"),
     managerId: z.string().uuid("Invalid manager ID format").optional(),
+    workLocationId: z.string().uuid("Invalid work location ID format").optional().nullable(),
 });
 
 /**
@@ -15,6 +16,7 @@ export const createDepartmentSchema = z.object({
 export const updateDepartmentSchema = z.object({
     name: z.string().min(1, "Department name is required").optional(),
     managerId: z.string().uuid("Invalid manager ID format").optional().nullable(),
+    workLocationId: z.string().uuid("Invalid work location ID format").optional().nullable(),
 });
 
 /**
@@ -23,6 +25,7 @@ export const updateDepartmentSchema = z.object({
 export const createTeamSchema = z.object({
     name: z.string().min(1, "Team name is required"),
     departmentId: z.string().uuid("Invalid department ID format"),
+    workLocationId: z.string().uuid("Invalid work location ID format").optional().nullable(),
 });
 
 /**
