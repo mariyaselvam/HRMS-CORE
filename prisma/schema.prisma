@@ -29,6 +29,8 @@ model Company {
   users          User[]
   workLocations  WorkLocation[]
   workflows      Workflow[]
+  payrollRule    PayrollRule?
+  payrollRuns    PayrollRun[]
 
   @@map("companies")
 }
@@ -50,6 +52,7 @@ model User {
   uploadedDocs    EmployeeDocument[]
   employee        Employee?
   triggeredCycles PayrollCycle[]
+  triggeredRuns   PayrollRun[]
   company         Company            @relation(fields: [companyId], references: [id])
   role            Role               @relation(fields: [roleId], references: [id])
   workLocation    WorkLocation?      @relation(fields: [workLocationId], references: [id])
@@ -622,4 +625,44 @@ model SystemSetting {
 
   @@unique([companyId, key])
   @@map("system_settings")
+}
+
+model PayrollRule {
+  id                      String    @id @default(uuid()) @db.Uuid
+  companyId               String    @unique @map("company_id") @db.Uuid
+  frequencyType           String    @map("frequency_type")
+  processingMode          String    @map("processing_mode")
+  payrollDateType         String    @map("payroll_date_type")
+  payrollDate             Int?      @map("payroll_date")
+  attendanceCutoffDate    Int?      @map("attendance_cutoff_date")
+  salaryCalculationMethod String    @map("salary_calculation_method")
+  includeWeekends         Boolean   @default(false) @map("include_weekends")
+  includeHolidays         Boolean   @default(true) @map("include_holidays")
+  autoProcessEnabled      Boolean   @default(false) @map("auto_process_enabled")
+  isActive                Boolean   @default(true) @map("is_active")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  company Company @relation(fields: [companyId], references: [id])
+
+  @@map("payroll_rules")
+}
+
+model PayrollRun {
+  id             String    @id @default(uuid()) @db.Uuid
+  companyId      String    @map("company_id") @db.Uuid
+  payrollPeriod  String    @map("payroll_period")
+  runType        String    @map("run_type")
+  triggeredBy    String?   @map("triggered_by") @db.Uuid
+  status         String
+  employeeCount  Int       @default(0) @map("employee_count")
+  totalAmount    Decimal   @default(0) @map("total_amount") @db.Decimal(12, 2)
+  startedAt      DateTime? @map("started_at")
+  completedAt    DateTime? @map("completed_at")
+  errorMessage   String?   @map("error_message")
+
+  company Company @relation(fields: [companyId], references: [id])
+  user    User?   @relation(fields: [triggeredBy], references: [id])
+
+  @@map("payroll_runs")
 }
