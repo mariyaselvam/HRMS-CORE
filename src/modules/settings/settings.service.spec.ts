@@ -7,8 +7,9 @@ jest.mock('../../common/utils/prisma', () => ({
     systemSetting: {
       findMany: jest.fn(),
       upsert: jest.fn(),
+      deleteMany: jest.fn(),
     },
-    $transaction: jest.fn(),
+    $transaction: jest.fn((cb) => cb(prisma)),
   },
 }));
 

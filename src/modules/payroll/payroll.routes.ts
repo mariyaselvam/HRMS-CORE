@@ -5,7 +5,8 @@ import { PayrollRunnerController } from './payroll-runner.controller';
 import { authenticate } from '../../common/middleware/auth.middleware';
 import {
     validateSalaryStructure,
-    validateGeneratePayroll
+    validateGeneratePayroll,
+    validateUpdatePayrollRecord
 } from './payroll.validator';
 
 const router = Router();
@@ -24,6 +25,7 @@ router.post('/salary-setup', validateSalaryStructure, controller.setupSalary);
 router.get('/salary-structure/:id', controller.getSalaryStructure);
 router.post('/generate', validateGeneratePayroll, controller.generate);
 router.get('/records', controller.listRecords);
+router.patch('/records/:id', validateUpdatePayrollRecord, controller.updateRecord);
 router.patch('/cycles/:id/finalize', controller.finalize);
 router.get('/records/:id/download', controller.downloadPayslip);
 

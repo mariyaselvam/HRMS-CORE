@@ -123,7 +123,7 @@ describe('LeaveService', () => {
 
             await leaveService.getRequests(mockCompanyId);
 
-            expect(leaveRepositoryMock.listRequests).toHaveBeenCalledWith(mockCompanyId, undefined);
+            expect(leaveRepositoryMock.listRequests).toHaveBeenCalledWith(mockCompanyId, undefined, undefined);
         });
 
         it('should list requests for a specific employee if userId is provided', async () => {
@@ -133,7 +133,7 @@ describe('LeaveService', () => {
             await leaveService.getRequests(mockCompanyId, mockUserId);
 
             expect(prisma.employee.findUnique).toHaveBeenCalledWith({ where: { userId: mockUserId } });
-            expect(leaveRepositoryMock.listRequests).toHaveBeenCalledWith(mockCompanyId, mockEmployeeId);
+            expect(leaveRepositoryMock.listRequests).toHaveBeenCalledWith(mockCompanyId, mockEmployeeId, undefined);
         });
     });
 

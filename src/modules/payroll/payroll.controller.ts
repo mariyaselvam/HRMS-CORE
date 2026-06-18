@@ -53,4 +53,11 @@ export class PayrollController {
         res.setHeader('Content-Disposition', `attachment; filename=payslip-${recordId}.pdf`);
         res.send(pdfBuffer);
     };
+
+    updateRecord = async (req: Request, res: Response) => {
+        const companyId = req.user!.companyId;
+        const id = req.params.id as string;
+        const result = await this.service.updateRecord(companyId, id, req.body);
+        res.json({ success: true, data: result });
+    };
 }

@@ -37,7 +37,7 @@ describe('OrganizationService', () => {
 
             const result = await organizationService.getDepartments(mockCompanyId);
 
-            expect(orgRepositoryMock.findDepartmentsByCompany).toHaveBeenCalledWith(mockCompanyId);
+            expect(orgRepositoryMock.findDepartmentsByCompany).toHaveBeenCalledWith(mockCompanyId, undefined);
             expect(result).toEqual(lists);
         });
 
@@ -78,7 +78,7 @@ describe('OrganizationService', () => {
 
             const result = await organizationService.getTeams(mockCompanyId);
 
-            expect(orgRepositoryMock.findTeamsByCompany).toHaveBeenCalledWith(mockCompanyId);
+            expect(orgRepositoryMock.findTeamsByCompany).toHaveBeenCalledWith(mockCompanyId, undefined);
             expect(result).toEqual(lists);
         });
 

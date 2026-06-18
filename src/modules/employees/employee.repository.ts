@@ -7,6 +7,7 @@ import {
     OnboardStep4Input,
     OnboardStep5Input
 } from './employee.validator';
+import { SystemRole } from '../../common/enums/role.enum';
 
 export class EmployeeRepository {
     async findByEmail(email: string) {
@@ -27,15 +28,21 @@ export class EmployeeRepository {
     async createEmployee(companyId: string, data: OnboardEmployeeInput, hashedPassword: string) {
         return prisma.$transaction(async (tx) => {
             let role = await tx.role.findFirst({
-                where: { companyId, name: data.role || 'Employee' }
+                where: {
+                    OR: [
+                        { companyId, name: data.role || SystemRole.EMPLOYEE },
+                        { companyId: null, name: data.role || SystemRole.EMPLOYEE }
+                    ]
+                }
             });
 
             if (!role) {
                 role = await tx.role.create({
                     data: {
-                        name: data.role || 'Employee',
+                        name: data.role || SystemRole.EMPLOYEE,
                         companyId,
-                        description: `${data.role || 'Standard employee'} access`
+                        description: `${data.role || SystemRole.EMPLOYEE} access`,
+                        isSystemRole: true
                     }
                 });
             }

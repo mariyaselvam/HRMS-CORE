@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { AuthenticationError } from '../errors/AppError';
+import { SystemRole } from '../enums/role.enum';
 
 export interface UserPayload {
     userId: string;
@@ -46,7 +47,14 @@ export const authenticate = (req: Request, res: Response, next: NextFunction) =>
     }
 };
 
-export const requireRole = (roles: string[]) => {
+/**
+ * Middleware to restrict routes to specific system roles.
+ * Accepts SystemRole enum values for type safety.
+ *
+ * Usage:
+ *   router.use(requireRole([SystemRole.COMPANY_ADMIN, SystemRole.HR_MANAGER]));
+ */
+export const requireRole = (roles: (SystemRole | string)[]) => {
     return (req: Request, res: Response, next: NextFunction) => {
 
         if (!req.user) {

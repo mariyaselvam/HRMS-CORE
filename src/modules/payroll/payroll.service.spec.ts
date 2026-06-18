@@ -1,3 +1,5 @@
+/// <reference types="jest" />
+
 import { PayrollService } from './payroll.service';
 import { PayrollRepository } from './payroll.repository';
 import prisma from '../../common/utils/prisma';
@@ -92,13 +94,14 @@ describe('PayrollService', () => {
 
     describe('generateMonthlyPayroll', () => {
         const adminUserId = 'admin-1';
+        const branchId = 'branch-1';
         const generateData = { month: '2024-01' };
 
         it('should throw AppError if cycle already exists', async () => {
             payrollRepositoryMock.findCycle = jest.fn().mockResolvedValue({ id: 'cycle-1', status: 'completed' });
 
-            await expect(payrollService.generateMonthlyPayroll(mockCompanyId, adminUserId, generateData)).rejects.toThrow(AppError);
-            await expect(payrollService.generateMonthlyPayroll(mockCompanyId, adminUserId, generateData)).rejects.toMatchObject({
+            await expect(payrollService.generateMonthlyPayroll(mockCompanyId, adminUserId, branchId, generateData)).rejects.toThrow(AppError);
+            await expect(payrollService.generateMonthlyPayroll(mockCompanyId, adminUserId, branchId, generateData)).rejects.toMatchObject({
                 message: expect.stringContaining('is already generated')
             });
         });
@@ -129,10 +132,10 @@ describe('PayrollService', () => {
             
             payrollRepositoryMock.createPayrollRecord = jest.fn().mockResolvedValue({ id: 'record-x' });
 
-            const result = await payrollService.generateMonthlyPayroll(mockCompanyId, adminUserId, generateData);
+            const result = await payrollService.generateMonthlyPayroll(mockCompanyId, adminUserId, branchId, generateData);
 
-            expect(payrollRepositoryMock.findCycle).toHaveBeenCalledWith(mockCompanyId, expectedMonthDate);
-            expect(payrollRepositoryMock.createCycle).toHaveBeenCalledWith(mockCompanyId, expectedMonthDate, adminUserId);
+            expect(payrollRepositoryMock.findCycle).toHaveBeenCalledWith(mockCompanyId, expectedMonthDate, branchId);
+            expect(payrollRepositoryMock.createCycle).toHaveBeenCalledWith(mockCompanyId, expectedMonthDate, adminUserId, branchId);
             expect(prisma.employee.findMany).toHaveBeenCalled();
             expect(prisma.holiday.findMany).toHaveBeenCalled();
             
@@ -146,10 +149,12 @@ describe('PayrollService', () => {
     });
 
     describe('getCycleRecords', () => {
+        const branchId = 'branch-1';
+
         it('should return empty array if cycle not found', async () => {
             payrollRepositoryMock.findCycle = jest.fn().mockResolvedValue(null);
 
-            const result = await payrollService.getCycleRecords(mockCompanyId, '2024-01');
+            const result = await payrollService.getCycleRecords(mockCompanyId, branchId, '2024-01');
 
             expect(result).toEqual([]);
         });
@@ -158,7 +163,7 @@ describe('PayrollService', () => {
             payrollRepositoryMock.findCycle = jest.fn().mockResolvedValue({ id: 'cycle-1' });
             payrollRepositoryMock.getPayrollRecords = jest.fn().mockResolvedValue([{ id: 'record-1' }]);
 
-            const result = await payrollService.getCycleRecords(mockCompanyId, '2024-01');
+            const result = await payrollService.getCycleRecords(mockCompanyId, branchId, '2024-01');
 
             expect(payrollRepositoryMock.getPayrollRecords).toHaveBeenCalledWith('cycle-1');
             expect(result).toEqual([{ id: 'record-1' }]);

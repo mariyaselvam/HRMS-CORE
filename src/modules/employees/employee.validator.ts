@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { validateRequest } from '../../common/middleware/validation.middleware';
+import { SystemRole } from '../../common/enums/role.enum';
 
 /**
  * Employment Status Enum
@@ -16,8 +17,15 @@ export const onboardStep1Schema = z.object({
     departmentId: z.uuid("Invalid department ID format"),
     workLocationId: z.uuid("Invalid work location ID format").optional(),
     role: z.preprocess(
-        (val) => typeof val === 'string' ? val.charAt(0).toUpperCase() + val.toLowerCase().slice(1) : val,
-        z.enum(['Employee', 'Manager', 'HR']).optional().default('Employee')
+        (val) => {
+            if (typeof val === 'string') {
+                if (val === 'HR') return SystemRole.HR_MANAGER;
+                if (val === 'Manager') return SystemRole.BRANCH_MANAGER;
+                if (Object.values(SystemRole).includes(val as any)) return val;
+            }
+            return val;
+        },
+        z.nativeEnum(SystemRole).optional().default(SystemRole.EMPLOYEE)
     ),
     managerId: z.uuid("Invalid manager ID format").optional(),
     dateOfJoining: z.string().refine((val) => !isNaN(Date.parse(val)), {

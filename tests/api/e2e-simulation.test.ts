@@ -1,6 +1,7 @@
 import request from 'supertest';
 import app from '../../src/app';
 import prisma from '../../src/common/utils/prisma';
+import { SystemRole } from '../../src/common/enums/role.enum';
 
 describe('HRMS E2E Simulation API', () => {
     let companyId: string;
@@ -28,9 +29,23 @@ describe('HRMS E2E Simulation API', () => {
         // Normally we'd fetch employees, for now we assume they were created by the factory in create-sandbox if we had that logic
         // But our create-sandbox currently only creates the company. 
         // Let's create a few employees first for this test.
-        const roleResult = await prisma.role.findFirst({ where: { companyId, name: 'Admin' } });
+        const roleResult = await prisma.role.findFirst({
+            where: {
+                OR: [
+                    { name: SystemRole.COMPANY_ADMIN },
+                    { name: 'Admin' }
+                ]
+            }
+        });
         const adminRoleId = roleResult ? roleResult.id : '';
         const dept = await prisma.department.create({ data: { name: 'Test Dept', companyId } });
+        const branch = await prisma.workLocation.create({
+            data: {
+                name: 'Test Branch',
+                companyId,
+                address: 'Test Address'
+            }
+        });
 
         // Manual employee creation for test isolation
         const user = await prisma.user.create({
@@ -44,10 +59,11 @@ describe('HRMS E2E Simulation API', () => {
 
         const emp = await prisma.employee.create({
             data: {
-                companyId,
-                userId: user.id,
+                company: { connect: { id: companyId } },
+                user: { connect: { id: user.id } },
                 employeeCode: `TEST${Math.floor(Math.random() * 1000)}`,
-                departmentId: dept.id,
+                department: { connect: { id: dept.id } },
+                workLocation: { connect: { id: branch.id } },
                 dateOfJoining: new Date(),
             }
         });

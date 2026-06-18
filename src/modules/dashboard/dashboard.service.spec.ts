@@ -24,23 +24,27 @@ describe('DashboardService', () => {
             const mockAttendanceToday = 85;
             const mockPendingRequests = 5;
             const mockPayrollSummary = { month: '2024-01', totalAmount: 500000 };
+            const mockAttendanceOverview = { present: 85, absent: 10, leave: 5 };
 
             dashboardRepositoryMock.getEmployeeStats = jest.fn().mockResolvedValue(mockEmployeeStats);
             dashboardRepositoryMock.getAttendanceToday = jest.fn().mockResolvedValue(mockAttendanceToday);
             dashboardRepositoryMock.getPendingRequests = jest.fn().mockResolvedValue(mockPendingRequests);
             dashboardRepositoryMock.getPayrollSummary = jest.fn().mockResolvedValue(mockPayrollSummary);
+            dashboardRepositoryMock.getAttendanceOverview = jest.fn().mockResolvedValue(mockAttendanceOverview);
 
             const result = await dashboardService.getAdminSummary(mockCompanyId);
 
-            expect(dashboardRepositoryMock.getEmployeeStats).toHaveBeenCalledWith(mockCompanyId);
-            expect(dashboardRepositoryMock.getAttendanceToday).toHaveBeenCalledWith(mockCompanyId);
-            expect(dashboardRepositoryMock.getPendingRequests).toHaveBeenCalledWith(mockCompanyId);
-            expect(dashboardRepositoryMock.getPayrollSummary).toHaveBeenCalledWith(mockCompanyId);
+            expect(dashboardRepositoryMock.getEmployeeStats).toHaveBeenCalledWith(mockCompanyId, undefined);
+            expect(dashboardRepositoryMock.getAttendanceToday).toHaveBeenCalledWith(mockCompanyId, undefined);
+            expect(dashboardRepositoryMock.getPendingRequests).toHaveBeenCalledWith(mockCompanyId, undefined);
+            expect(dashboardRepositoryMock.getPayrollSummary).toHaveBeenCalledWith(mockCompanyId, undefined);
+            expect(dashboardRepositoryMock.getAttendanceOverview).toHaveBeenCalledWith(mockCompanyId, undefined);
 
             expect(result).toEqual({
                 employees: mockEmployeeStats,
                 attendance: {
-                    presentToday: mockAttendanceToday
+                    presentToday: mockAttendanceToday,
+                    overview: mockAttendanceOverview
                 },
                 approvalsPending: mockPendingRequests,
                 latestPayroll: mockPayrollSummary

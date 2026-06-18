@@ -1,7 +1,6 @@
 import prisma from '../../common/utils/prisma';
 import {
     SalaryStructureInput,
-    GeneratePayrollInput,
     UpdatePayrollRecordInput
 } from './payroll.validator';
 
@@ -39,14 +38,14 @@ export class PayrollRepository {
         });
     }
 
-    async createCycle(companyId: string, month: Date, adminUserId: string, workLocationId: string) {
+    async createCycle(companyId: string, month: Date, adminUserId: string | null, workLocationId: string) {
         return prisma.payrollCycle.create({
             data: {
                 companyId,
                 workLocationId,
                 month,
                 status: 'draft',
-                triggeredBy: adminUserId
+                triggeredBy: adminUserId || undefined
             }
         });
     }

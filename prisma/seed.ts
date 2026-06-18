@@ -3,19 +3,78 @@ import prisma from '../src/common/utils/prisma';
 import { companyFactory } from '../tests/factories/company.factory';
 import { departmentFactory } from '../tests/factories/department.factory';
 import { employeeFactory } from '../tests/factories/employee.factory';
+import { SystemRole } from '../src/common/enums/role.enum';
+import { SystemPermission, DEFAULT_ROLE_PERMISSIONS } from '../src/common/enums/permission.enum';
 import * as bcrypt from 'bcrypt';
 
 async function main() {
-    console.log('Seeding database using factories...');
+    console.log('Seeding system permissions and roles...');
 
-    // 1. Create Company and Admin Role
+    const permissions = Object.values(SystemPermission);
+    for (const code of permissions) {
+        await prisma.permission.upsert({
+            where: { code },
+            update: {},
+            create: { code, description: `Access to ${code}` }
+        });
+    }
+    console.log(`Seeded ${permissions.length} permissions.`);
+
+    // Let's write the seed logic correctly without pseudo-code:
+    console.log('Upserting System Roles...');
+    for (const roleName of Object.values(SystemRole)) {
+        let role = await prisma.role.findFirst({
+            where: { companyId: null, name: roleName }
+        });
+
+        if (!role) {
+            role = await prisma.role.create({
+                data: {
+                    name: roleName,
+                    companyId: null,
+                    description: `System role for ${roleName}`,
+                    isSystemRole: true
+                }
+            });
+        }
+
+        // Map default permissions to this role
+        const defaultPerms = DEFAULT_ROLE_PERMISSIONS[roleName] || [];
+        for (const permCode of defaultPerms) {
+            const dbPerm = await prisma.permission.findUnique({
+                where: { code: permCode }
+            });
+            if (dbPerm) {
+                // Upsert role permission mapping
+                const existingMapping = await prisma.rolePermission.findUnique({
+                    where: {
+                        roleId_permissionId: {
+                            roleId: role.id,
+                            permissionId: dbPerm.id
+                        }
+                    }
+                });
+                if (!existingMapping) {
+                    await prisma.rolePermission.create({
+                        data: {
+                            roleId: role.id,
+                            permissionId: dbPerm.id
+                        }
+                    });
+                }
+            }
+        }
+    }
+    console.log('Predefined system roles and permissions successfully seeded.');
+
+    // 3. Create Company and Admin Role (resolves global or creates under company)
     const { company, adminRole } = await companyFactory.createWithBasics({
         name: 'Acme Corp',
         industryType: 'Technology'
     });
     console.log(`Created Company: ${company.name}`);
 
-    // 2. Create HQ Branch (WorkLocation)
+    // 4. Create HQ Branch (WorkLocation)
     const hq = await prisma.workLocation.create({
         data: {
             companyId: company.id,
@@ -25,14 +84,14 @@ async function main() {
     });
     console.log(`Created Branch: ${hq.name}`);
 
-    // 3. Create a Department
+    // 5. Create a Department
     const dept = await departmentFactory.create({
         companyId: company.id,
         name: 'Engineering'
     });
     console.log(`Created Department: ${dept.name}`);
 
-    // 4. Create a Super Admin User
+    // 6. Create a Super Admin User
     const passwordHash = await bcrypt.hash('Admin@123', 10);
     const adminUser = await prisma.user.create({
         data: {
@@ -59,7 +118,7 @@ async function main() {
     });
     console.log(`Created Super Admin: admin@acme.com / Admin@123`);
 
-    // 5. Create some dummy employees using factories
+    // 7. Create some dummy employees using factories
     console.log('Creating dummy employees...');
     for (let i = 0; i < 5; i++) {
         await employeeFactory.createFull(company.id, dept.id, hq.id, adminRole.id);

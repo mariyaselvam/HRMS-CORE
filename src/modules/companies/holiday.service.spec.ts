@@ -35,7 +35,7 @@ describe('HolidayService', () => {
                 statusCode: 400
             });
 
-            expect(holidayRepositoryMock.findHolidayByDate).toHaveBeenCalledWith(mockCompanyId, new Date(mockData.date));
+            expect(holidayRepositoryMock.findHolidayByDate).toHaveBeenCalledWith(mockCompanyId, new Date(mockData.date), undefined);
         });
 
         it('should add a holiday successfully if no collision', async () => {
@@ -46,7 +46,7 @@ describe('HolidayService', () => {
 
             const result = await holidayService.addHoliday(mockCompanyId, mockData as any);
 
-            expect(holidayRepositoryMock.findHolidayByDate).toHaveBeenCalledWith(mockCompanyId, new Date(mockData.date));
+            expect(holidayRepositoryMock.findHolidayByDate).toHaveBeenCalledWith(mockCompanyId, new Date(mockData.date), undefined);
             expect(holidayRepositoryMock.createHoliday).toHaveBeenCalledWith(mockCompanyId, mockData);
             expect(result).toEqual(newHoliday);
         });
@@ -60,11 +60,11 @@ describe('HolidayService', () => {
             holidayRepositoryMock.listHolidays = jest.fn().mockResolvedValue(holidays);
 
             const resultWithoutYear = await holidayService.getHolidays(mockCompanyId);
-            expect(holidayRepositoryMock.listHolidays).toHaveBeenLastCalledWith(mockCompanyId, undefined);
+            expect(holidayRepositoryMock.listHolidays).toHaveBeenLastCalledWith(mockCompanyId, undefined, undefined);
             expect(resultWithoutYear).toEqual(holidays);
 
             const resultWithYear = await holidayService.getHolidays(mockCompanyId, 2024);
-            expect(holidayRepositoryMock.listHolidays).toHaveBeenLastCalledWith(mockCompanyId, 2024);
+            expect(holidayRepositoryMock.listHolidays).toHaveBeenLastCalledWith(mockCompanyId, 2024, undefined);
             expect(resultWithYear).toEqual(holidays);
         });
     });

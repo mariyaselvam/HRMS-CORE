@@ -5,7 +5,31 @@ export class PayrollSimulator {
     /**
      * Generates a monthly payroll for an entire branch.
      */
-    async runMonthlyPayroll(companyId: string, workLocationId: string, year: number, month: number) {
+    async runMonthlyPayroll(
+        companyId: string,
+        workLocationIdOrYear: string | number,
+        yearOrMonth: number,
+        monthOrWorkLocationId?: number | string
+    ) {
+        let workLocationId: string;
+        let year: number;
+        let month: number;
+
+        if (typeof workLocationIdOrYear === 'number') {
+            year = workLocationIdOrYear;
+            month = yearOrMonth;
+            workLocationId = (monthOrWorkLocationId as string) || '';
+        } else {
+            workLocationId = workLocationIdOrYear;
+            year = yearOrMonth;
+            month = monthOrWorkLocationId as number;
+        }
+
+        if (!workLocationId) {
+            const loc = await prisma.workLocation.findFirst({ where: { companyId } });
+            workLocationId = loc?.id || '';
+        }
+
         const startDate = new Date(year, month - 1, 1);
         const endDate = new Date(year, month, 0);
 

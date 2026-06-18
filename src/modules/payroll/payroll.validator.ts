@@ -5,7 +5,7 @@ import { validateRequest } from '../../common/middleware/validation.middleware';
  * Salary Structure Validation Schema
  */
 export const salaryStructureSchema = z.object({
-    employeeId: z.string().uuid("Invalid employee ID"),
+    employeeId: z.uuid("Invalid employee ID"),
     basicSalary: z.number().positive("Basic salary must be positive"),
     hra: z.number().nonnegative().default(0),
     transportAllowance: z.number().nonnegative().default(0),

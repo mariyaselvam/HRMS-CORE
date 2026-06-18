@@ -9,6 +9,7 @@ import {
     UpdatePayrollRecordInput
 } from './payroll.validator';
 import { AppError, NotFoundError } from '../../common/errors/AppError';
+import { SystemRole, ADMIN_ROLES, PAYROLL_ROLES } from '../../common/enums/role.enum';
 import prisma from '../../common/utils/prisma';
 
 export class PayrollService {
@@ -46,7 +47,7 @@ export class PayrollService {
     }
 
     // --- Payroll Generation ---
-    async generateMonthlyPayroll(companyId: string, adminUserId: string, workLocationId: string | undefined, data: GeneratePayrollInput) {
+    async generateMonthlyPayroll(companyId: string, adminUserId: string | null, workLocationId: string | undefined, data: GeneratePayrollInput) {
         if (!workLocationId) {
             throw new AppError('Branch context (workLocationId) is required for payroll generation', 400);
         }
@@ -201,8 +202,8 @@ export class PayrollService {
         const record = await this.repository.getFullRecordContext(recordId);
         if (!record) throw new NotFoundError('Payroll record not found');
 
-        // Security check: must be admin of the company OR the employee themselves
-        const isAdmin = observerRole === 'Admin' || observerRole === 'Manager';
+        // Security check: must be admin/payroll manager of the company OR the employee themselves
+        const isAdmin = [...ADMIN_ROLES, ...PAYROLL_ROLES].includes(observerRole as SystemRole);
         const isOwner = record.employee.userId === observerUserId;
         const isSameCompany = record.payrollCycle.companyId === observerCompanyId;
 
@@ -275,5 +276,25 @@ export class PayrollService {
 
         const pdfBytes = await pdfDoc.save();
         return Buffer.from(pdfBytes);
+    }
+
+    async updateRecord(companyId: string, id: string, data: UpdatePayrollRecordInput) {
+        const record = await prisma.payrollRecord.findFirst({
+            where: {
+                id,
+                payrollCycle: {
+                    companyId
+                }
+            },
+            include: {
+                payrollCycle: true
+            }
+        });
+        if (!record) throw new NotFoundError('Payroll record not found');
+        if (record.payrollCycle.status === 'finalized') {
+            throw new AppError('Cannot adjust records in a finalized payroll cycle', 400);
+        }
+
+        return this.repository.updateRecord(id, data);
     }
 }

@@ -10,12 +10,24 @@ export class PayrollRunnerService {
     }
 
     async getRunPreview(companyId: string, period: string) {
-        // Simple mock preview logic for now based on employee count
-        const count = await prisma.employee.count({ where: { companyId, employmentStatus: 'active' } });
+        const activeEmployees = await prisma.employee.findMany({
+            where: { companyId, employmentStatus: 'active' },
+            include: { salaryStructures: { where: { isActive: true } } }
+        });
+
+        const count = activeEmployees.length;
+        let estimatedTotal = 0;
+        for (const emp of activeEmployees) {
+            const activeSalary = emp.salaryStructures[0];
+            if (activeSalary) {
+                estimatedTotal += Number(activeSalary.grossSalary);
+            }
+        }
+
         return {
             period,
             employeeCount: count,
-            estimatedTotal: count * 5000 // Mock data
+            estimatedTotal: estimatedTotal
         };
     }
 
@@ -41,15 +53,49 @@ export class PayrollRunnerService {
         });
 
         try {
-            // Mock processing
-            const count = await prisma.employee.count({ where: { companyId, employmentStatus: 'active' } });
-            
+            const payrollService = new PayrollService();
+            const branches = await prisma.workLocation.findMany({
+                where: { companyId }
+            });
+
+            let totalEmployees = 0;
+            let totalAmount = 0;
+
+            for (const branch of branches) {
+                try {
+                    const result = await payrollService.generateMonthlyPayroll(
+                        companyId,
+                        triggeredBy || null,
+                        branch.id,
+                        { month: period }
+                    );
+
+                    const records = await prisma.payrollRecord.findMany({
+                        where: { payrollCycleId: result.cycle.id }
+                    });
+
+                    totalEmployees += records.length;
+                    totalAmount += records.reduce((sum, r) => sum + Number(r.netSalary), 0);
+                } catch (branchErr: any) {
+                    console.log(`Skipping branch ${branch.name} for period ${period}: ${branchErr.message}`);
+                    const monthDate = new Date(`${period}-01`);
+                    const existingCycle = await prisma.payrollCycle.findFirst({
+                        where: { companyId, workLocationId: branch.id, month: monthDate },
+                        include: { payrollRecords: true }
+                    });
+                    if (existingCycle) {
+                        totalEmployees += existingCycle.payrollRecords.length;
+                        totalAmount += existingCycle.payrollRecords.reduce((sum, r) => sum + Number(r.netSalary), 0);
+                    }
+                }
+            }
+
             await prisma.payrollRun.update({
                 where: { id: run.id },
                 data: {
                     status: 'Completed',
-                    employeeCount: count,
-                    totalAmount: count * 5000,
+                    employeeCount: totalEmployees,
+                    totalAmount: totalAmount,
                     completedAt: new Date()
                 }
             });

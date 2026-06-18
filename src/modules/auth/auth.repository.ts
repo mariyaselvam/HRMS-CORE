@@ -1,5 +1,6 @@
 import prisma from '../../common/utils/prisma';
 import { RegisterCompanyInput } from './auth.validator';
+import { SystemRole } from '../../common/enums/role.enum';
 
 export class AuthRepository {
     async findByEmail(email: string) {
@@ -19,13 +20,20 @@ export class AuthRepository {
                 }
             });
 
-            const adminRole = await tx.role.create({
-                data: {
-                    name: 'Admin',
-                    companyId: company.id,
-                    description: 'Company Administrator with full access'
-                }
+            let adminRole = await tx.role.findFirst({
+                where: { companyId: null, name: SystemRole.COMPANY_ADMIN }
             });
+
+            if (!adminRole) {
+                adminRole = await tx.role.create({
+                    data: {
+                        name: SystemRole.COMPANY_ADMIN,
+                        companyId: company.id,
+                        description: 'Company Administrator with full access',
+                        isSystemRole: true
+                    }
+                });
+            }
 
             const user = await tx.user.create({
                 data: {
