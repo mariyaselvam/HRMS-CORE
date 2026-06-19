@@ -85,7 +85,12 @@ export class PayrollRepository {
     }
 
     async getPayrollRecords(cycleId: string) {
-        return prisma.payrollRecord.findMany({
+        const cycle = await prisma.payrollCycle.findUnique({
+            where: { id: cycleId },
+            select: { status: true }
+        });
+
+        const records = await prisma.payrollRecord.findMany({
             where: { payrollCycleId: cycleId },
             include: {
                 employee: {
@@ -98,6 +103,9 @@ export class PayrollRepository {
                 }
             }
         });
+
+        // Attach the cycle status to each record for frontend display
+        return records.map(r => ({ ...r, status: cycle?.status || 'draft' }));
     }
 
     async updateRecord(id: string, data: UpdatePayrollRecordInput) {

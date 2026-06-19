@@ -179,9 +179,35 @@ export class PayrollService {
     }
 
     async getCycleRecords(companyId: string, workLocationId: string | undefined, month: string) {
-        if (!workLocationId) return [];
-        
         const monthDate = new Date(`${month}-01`);
+        
+        // If no specific branch, find all cycles for this company+month across all branches
+        if (!workLocationId) {
+            const cycles = await prisma.payrollCycle.findMany({
+                where: { companyId, month: monthDate },
+                include: {
+                    payrollRecords: {
+                        include: {
+                            employee: {
+                                select: {
+                                    employeeCode: true,
+                                    department: { select: { name: true } },
+                                    personalDetails: { select: { firstName: true, lastName: true } },
+                                    user: { select: { email: true } }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+            
+            // Flatten all records from all cycles and add status from parent cycle
+            const allRecords = cycles.flatMap(c => 
+                c.payrollRecords.map(r => ({ ...r, status: c.status, payrollCycleId: c.id }))
+            );
+            return allRecords;
+        }
+        
         const cycle = await this.repository.findCycle(companyId, monthDate, workLocationId);
         if (!cycle) return [];
 
