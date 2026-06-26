@@ -87,7 +87,8 @@ async function main() {
     // 5. Create a Department
     const dept = await departmentFactory.create({
         companyId: company.id,
-        name: 'Engineering'
+        name: 'Engineering',
+        workLocationId: hq.id
     });
     console.log(`Created Department: ${dept.name}`);
 

@@ -47,4 +47,32 @@ export class OrganizationService {
     async deleteTeam(id: string, companyId: string) {
         return this.orgRepository.deleteTeam(id, companyId);
     }
+
+    async createRole(companyId: string, data: { name: string; description?: string }) {
+        return this.orgRepository.createRole(companyId, data);
+    }
+
+    async getRoles(companyId: string) {
+        return this.orgRepository.findRolesByCompany(companyId);
+    }
+
+    async updateRole(id: string, companyId: string, data: { name?: string; description?: string }) {
+        return this.orgRepository.updateRole(id, companyId, data);
+    }
+
+    async deleteRole(id: string, companyId: string) {
+        return this.orgRepository.deleteRole(id, companyId);
+    }
+
+    async assignPermissionsToRole(roleId: string, companyId: string, permissionIds: string[]) {
+        return this.orgRepository.assignPermissionsToRole(roleId, companyId, permissionIds);
+    }
+
+    async getRolePermissions(roleId: string, companyId: string) {
+        return this.orgRepository.findRolePermissions(roleId, companyId);
+    }
+
+    async removePermissionFromRole(roleId: string, companyId: string, permissionId: string) {
+        return this.orgRepository.removePermissionFromRole(roleId, companyId, permissionId);
+    }
 }

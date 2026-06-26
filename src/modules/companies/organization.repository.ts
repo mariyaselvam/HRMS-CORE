@@ -113,4 +113,80 @@ export class OrganizationRepository {
             where: { id, companyId }
         });
     }
+
+    async createRole(companyId: string, data: { name: string; description?: string }) {
+        return prisma.role.create({
+            data: {
+                ...data,
+                companyId,
+                isSystemRole: false,
+            }
+        });
+    }
+
+    async findRolesByCompany(companyId: string) {
+        return prisma.role.findMany({
+            where: { companyId },
+            include: {
+                permissions: {
+                    include: {
+                        permission: true
+                    }
+                }
+            }
+        });
+    }
+
+    async updateRole(id: string, companyId: string, data: { name?: string; description?: string }) {
+        return prisma.role.update({
+            where: { id, companyId },
+            data: {
+                name: data.name,
+                description: data.description,
+            }
+        });
+    }
+
+    async deleteRole(id: string, companyId: string) {
+        return prisma.role.delete({
+            where: { id, companyId }
+        });
+    }
+
+    async assignPermissionsToRole(roleId: string, companyId: string, permissionIds: string[]) {
+        // Remove existing permissions first, then add new ones
+        await prisma.rolePermission.deleteMany({
+            where: { roleId }
+        });
+
+        // Update role with new permissions using connect
+        return prisma.role.update({
+            where: { id: roleId },
+            data: {
+                permissions: {
+                    create: permissionIds.map(pid => ({ permissionId: pid }))
+                }
+            }
+        });
+    }
+
+    async findRolePermissions(roleId: string, companyId: string) {
+        return prisma.rolePermission.findMany({
+            where: { roleId },
+            include: {
+                permission: true
+            }
+        });
+    }
+
+    async removePermissionFromRole(roleId: string, companyId: string, permissionId: string) {
+        return prisma.rolePermission.delete({
+            where: {
+                roleId_permissionId: {
+                    roleId,
+                    permissionId
+                }
+            }
+        });
+    }
 }

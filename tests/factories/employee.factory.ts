@@ -99,9 +99,7 @@ export class EmployeeFactory extends BaseFactory<Employee> {
                 transportAllowance: 5000,
                 otherAllowances: 5000,
                 grossSalary: 55000,
-                // @ts-ignore
                 pfContribution: 1800,
-                // @ts-ignore
                 esiContribution: 500,
                 effectiveFrom: new Date('2024-01-01'),
                 isActive: true

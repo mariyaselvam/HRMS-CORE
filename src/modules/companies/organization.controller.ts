@@ -73,4 +73,53 @@ export class OrganizationController {
         await this.orgService.deleteTeam(id, companyId);
         res.json({ success: true, message: 'Team deleted successfully' });
     };
+
+    createRole = async (req: Request, res: Response) => {
+        const companyId = req.user!.companyId;
+        const role = await this.orgService.createRole(companyId, req.body);
+        res.status(201).json({ success: true, data: role });
+    };
+
+    getRoles = async (req: Request, res: Response) => {
+        const companyId = req.user!.companyId;
+        const roles = await this.orgService.getRoles(companyId);
+        res.json({ success: true, data: roles });
+    };
+
+    updateRole = async (req: Request, res: Response) => {
+        const companyId = req.user!.companyId;
+        const id = req.params.id as string;
+        const role = await this.orgService.updateRole(id, companyId, req.body);
+        res.json({ success: true, data: role });
+    };
+
+    deleteRole = async (req: Request, res: Response) => {
+        const companyId = req.user!.companyId;
+        const id = req.params.id as string;
+        await this.orgService.deleteRole(id, companyId);
+        res.json({ success: true, message: 'Role deleted successfully' });
+    };
+
+    assignPermissionsToRole = async (req: Request, res: Response) => {
+        const companyId = req.user!.companyId;
+        const roleId = req.params.roleId as string;
+        const { permissionIds } = req.body;
+        await this.orgService.assignPermissionsToRole(roleId, companyId, permissionIds);
+        res.json({ success: true, message: 'Permissions assigned successfully' });
+    };
+
+    getRolePermissions = async (req: Request, res: Response) => {
+        const companyId = req.user!.companyId;
+        const roleId = req.params.roleId as string;
+        const permissions = await this.orgService.getRolePermissions(roleId, companyId);
+        res.json({ success: true, data: permissions });
+    };
+
+    removePermissionFromRole = async (req: Request, res: Response) => {
+        const companyId = req.user!.companyId;
+        const roleId = req.params.roleId as string;
+        const permissionId = req.params.permissionId as string;
+        await this.orgService.removePermissionFromRole(roleId, companyId, permissionId);
+        res.json({ success: true, message: 'Permission removed successfully' });
+    };
 }
