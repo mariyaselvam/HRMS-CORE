@@ -9,6 +9,8 @@ import payrollRoutes from './modules/payroll/payroll.routes';
 import holidayRoutes from './modules/companies/holiday.routes';
 import dashboardRoutes from './modules/dashboard/dashboard.routes';
 import testingRoutes from './modules/testing/testing.routes';
+import shiftRoutes from './modules/shifts/shifts.routes';
+import settingsRoutes from './modules/settings/settings.routes';
 
 const router = Router();
 
@@ -30,6 +32,9 @@ router.use('/employees', employeeRoutes);
 // Attendance routes
 router.use('/attendance', attendanceRoutes);
 
+// Shifts routes
+router.use('/shifts', shiftRoutes);
+
 // Leave routes
 router.use('/leave', leaveRoutes);
 
@@ -40,7 +45,6 @@ router.use('/payroll', payrollRoutes);
 router.use('/dashboard', dashboardRoutes);
 
 // Settings routes
-import settingsRoutes from './modules/settings/settings.routes';
 router.use('/settings', settingsRoutes);
 
 

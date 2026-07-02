@@ -1,26 +1,16 @@
 import { AttendanceRepository } from './attendance.repository';
-import { CreateShiftInput, AssignShiftInput, CheckInInput, CheckOutInput, AttendanceFilterInput } from './attendance.validator';
+import { ShiftsService } from '../shifts/shifts.service';
+import { CheckInInput, CheckOutInput, AttendanceFilterInput } from './attendance.validator';
 import { AppError, NotFoundError } from '../../common/errors/AppError';
 import prisma from '../../common/utils/prisma';
 
 export class AttendanceService {
     private repository: AttendanceRepository;
+    private shiftsService: ShiftsService;
 
     constructor() {
         this.repository = new AttendanceRepository();
-    }
-
-    // Shifts
-    async addShift(companyId: string, data: CreateShiftInput) {
-        return this.repository.createShift(companyId, data);
-    }
-
-    async getAllShifts(companyId: string) {
-        return this.repository.listShifts(companyId);
-    }
-
-    async assignEmployeeShift(data: AssignShiftInput) {
-        return this.repository.assignShift(data);
+        this.shiftsService = new ShiftsService();
     }
 
     // Check-In Logic
@@ -48,7 +38,7 @@ export class AttendanceService {
         let activeShift = null;
 
         if (!shiftId) {
-            const shiftAssignment = await this.repository.getActiveShift(employee.id);
+            const shiftAssignment = await this.shiftsService.getActiveShift(employee.id);
             if (shiftAssignment) {
                 activeShift = shiftAssignment.shift;
                 shiftId = activeShift.id;

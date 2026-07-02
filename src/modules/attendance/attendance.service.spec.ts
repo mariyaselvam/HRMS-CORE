@@ -1,9 +1,11 @@
 import { AttendanceService } from './attendance.service';
 import { AttendanceRepository } from './attendance.repository';
+import { ShiftsService } from '../shifts/shifts.service';
 import prisma from '../../common/utils/prisma';
 import { AppError, NotFoundError } from '../../common/errors/AppError';
 
 jest.mock('./attendance.repository');
+jest.mock('../shifts/shifts.service');
 jest.mock('../../common/utils/prisma', () => ({
     __esModule: true,
     default: {
@@ -19,49 +21,20 @@ jest.mock('../../common/utils/prisma', () => ({
 describe('AttendanceService', () => {
     let attendanceService: AttendanceService;
     let attendanceRepositoryMock: jest.Mocked<AttendanceRepository>;
+    let shiftsServiceMock: jest.Mocked<ShiftsService>;
 
     beforeEach(() => {
         jest.clearAllMocks();
-        
+
         attendanceService = new AttendanceService();
         attendanceRepositoryMock = (AttendanceRepository as jest.Mock).mock.instances[0] as unknown as jest.Mocked<AttendanceRepository>;
         if (!attendanceRepositoryMock) {
             attendanceRepositoryMock = (attendanceService as any).repository;
         }
-    });
-
-    describe('Shifts', () => {
-        const mockCompanyId = 'company-123';
-
-        it('should add a shift', async () => {
-            const shiftData = { name: 'Morning Shift', startTime: '09:00', endTime: '18:00', graceMinutes: 15 };
-            attendanceRepositoryMock.createShift = jest.fn().mockResolvedValue({ id: 'shift-1', ...shiftData });
-
-            const result = await attendanceService.addShift(mockCompanyId, shiftData as any);
-
-            expect(attendanceRepositoryMock.createShift).toHaveBeenCalledWith(mockCompanyId, shiftData);
-            expect(result).toHaveProperty('id', 'shift-1');
-        });
-
-        it('should list all shifts', async () => {
-            const shifts = [{ id: 'shift-1' }, { id: 'shift-2' }];
-            attendanceRepositoryMock.listShifts = jest.fn().mockResolvedValue(shifts);
-
-            const result = await attendanceService.getAllShifts(mockCompanyId);
-
-            expect(attendanceRepositoryMock.listShifts).toHaveBeenCalledWith(mockCompanyId);
-            expect(result).toEqual(shifts);
-        });
-
-        it('should assign a shift to an employee', async () => {
-            const assignData = { employeeId: 'emp-1', shiftId: 'shift-1', effectiveFrom: new Date().toISOString() };
-            attendanceRepositoryMock.assignShift = jest.fn().mockResolvedValue({ id: 'assign-1', ...assignData });
-
-            const result = await attendanceService.assignEmployeeShift(assignData);
-
-            expect(attendanceRepositoryMock.assignShift).toHaveBeenCalledWith(assignData);
-            expect(result).toHaveProperty('id', 'assign-1');
-        });
+        shiftsServiceMock = (ShiftsService as jest.Mock).mock.instances[0] as unknown as jest.Mocked<ShiftsService>;
+        if (!shiftsServiceMock) {
+            shiftsServiceMock = (attendanceService as any).shiftsService;
+        }
     });
 
     describe('processCheckIn', () => {
@@ -99,10 +72,10 @@ describe('AttendanceService', () => {
         it('should successfully check in with a status of present when on time', async () => {
             (prisma.employee.findUnique as jest.Mock).mockResolvedValue({ id: mockEmployeeId });
             attendanceRepositoryMock.getTodayLog = jest.fn().mockResolvedValue(null);
-            
+
             // Simulating no assigned shift for simplicity
-            attendanceRepositoryMock.getActiveShift = jest.fn().mockResolvedValue(null);
-            
+            shiftsServiceMock.getActiveShift = jest.fn().mockResolvedValue(null);
+
             const createdLog = { id: 'new-log', status: 'present' };
             attendanceRepositoryMock.createCheckIn = jest.fn().mockResolvedValue(createdLog);
 
@@ -157,7 +130,7 @@ describe('AttendanceService', () => {
             (prisma.employee.findUnique as jest.Mock).mockResolvedValue({ id: mockEmployeeId });
             const mockLog = { id: 'log-1', checkOut: null };
             attendanceRepositoryMock.getTodayLog = jest.fn().mockResolvedValue(mockLog);
-            
+
             const expectedLog = { ...mockLog, checkOut: new Date().toISOString() };
             attendanceRepositoryMock.updateCheckOut = jest.fn().mockResolvedValue(expectedLog);
 
@@ -175,7 +148,7 @@ describe('AttendanceService', () => {
             const mockUserId = 'user-123';
             const mockEmployeeId = 'emp-123';
             (prisma.employee.findUnique as jest.Mock).mockResolvedValue({ id: mockEmployeeId });
-            
+
             const filter = { startDate: '2024-01-01' };
             attendanceRepositoryMock.listAttendance = jest.fn().mockResolvedValue([]);
 
