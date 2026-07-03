@@ -34,6 +34,7 @@ async function runPerformanceSimulation() {
         data: {
             companyId: company.id,
             name: 'General Shift',
+            code: 'GEN',
             startTime: new Date('2024-01-01T09:00:00.000Z'),
             endTime: new Date('2024-01-01T18:00:00.000Z'),
         }
@@ -60,16 +61,15 @@ async function runPerformanceSimulation() {
 
     for (const dept of depts) {
         const hires = [];
-        let managerId: string | null = null;
+        let managerId: string | undefined = undefined;
 
         for (let i = 0; i < EMP_PER_DEPT; i++) {
             const team = i % 2 === 0 ? dept.teams[0] : dept.teams[1];
 
-            hires.push(employeeFactory.createFull(company.id, dept.id, adminRole.id, {
+            hires.push(employeeFactory.createFull(company.id, dept.id, adminRole.id, managerId!, {
                 workLocationId: workLocation.id,
                 teamId: team.id,
                 shiftId: shift.id,
-                managerId: managerId, // the first employee created in this dept will have null, the rest will have the first employee as manager
             }));
         }
 

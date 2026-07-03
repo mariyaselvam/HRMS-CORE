@@ -1,12 +1,12 @@
 import { Router } from 'express';
 
 import authRoutes from './modules/auth/auth.routes';
-import orgRoutes from './modules/companies/organization.routes';
+import orgRoutes from './modules/organization/organization.routes';
 import employeeRoutes from './modules/employees/employee.routes';
 import attendanceRoutes from './modules/attendance/attendance.routes';
 import leaveRoutes from './modules/leave/leave.routes';
 import payrollRoutes from './modules/payroll/payroll.routes';
-import holidayRoutes from './modules/companies/holiday.routes';
+import holidayRoutes from './modules/holiday/holiday.routes';
 import dashboardRoutes from './modules/dashboard/dashboard.routes';
 import testingRoutes from './modules/testing/testing.routes';
 import shiftRoutes from './modules/shifts/shifts.routes';

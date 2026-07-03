@@ -14,7 +14,7 @@ model Company {
   timezone       String          @default("UTC")
   status         String          @default("active")
   createdAt      DateTime        @default(now()) @map("created_at")
-  updatedAt      DateTime        @updatedAt @map("updated_at")
+  updatedAt      DateTime        @updatedAt @default(now()) @map("updated_at")
   auditLogs      AuditLog[]
   departments    Department[]
   employees      Employee[]
@@ -155,14 +155,19 @@ model Shift {
   id             String          @id @default(uuid()) @db.Uuid
   companyId      String          @map("company_id") @db.Uuid
   name           String
+  code           String          @map("code") @default("SHIFT")
   startTime      DateTime        @map("start_time") @db.Time(6)
   endTime        DateTime        @map("end_time") @db.Time(6)
   graceMinutes   Int             @default(0) @map("grace_minutes")
+  breakDuration  Int             @default(0) @map("break_duration")
+  status         String          @default("active")
   createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
   attendanceLogs AttendanceLog[]
   employeeShifts EmployeeShift[]
   company        Company         @relation(fields: [companyId], references: [id])
 
+  @@unique([companyId, code])
   @@map("shifts")
 }
 
@@ -178,6 +183,8 @@ model EmployeeShift {
   shift         Shift     @relation(fields: [shiftId], references: [id])
 
   @@unique([employeeId, effectiveFrom])
+  @@index([shiftId])
+  @@index([employeeId])
   @@map("employee_shifts")
 }
 
