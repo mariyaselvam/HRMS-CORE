@@ -1,7 +1,9 @@
 import fs from 'fs';
 import path from 'path';
 import Handlebars from 'handlebars';
-import { PDFDocument } from 'pdf-lib';
+import puppeteer from 'puppeteer';
+import { numberToWords, formatINR } from '../../common/utils/currency.utils';
+import { findSystemBrowser } from '../../common/utils/browser.utils';
 import { PayrollRepository } from './payroll.repository';
 import {
     SalaryStructureInput,
@@ -179,7 +181,10 @@ export class PayrollService {
     }
 
     async getCycleRecords(companyId: string, workLocationId: string | undefined, month: string) {
+        // Guard: month must be a valid YYYY-MM string
+        if (!month || !/^\d{4}-\d{2}$/.test(month)) return [];
         const monthDate = new Date(`${month}-01`);
+        if (isNaN(monthDate.getTime())) return [];
         
         // If no specific branch, find all cycles for this company+month across all branches
         if (!workLocationId) {
@@ -228,80 +233,124 @@ export class PayrollService {
         const record = await this.repository.getFullRecordContext(recordId);
         if (!record) throw new NotFoundError('Payroll record not found');
 
-        // Security check: must be admin/payroll manager of the company OR the employee themselves
+        // Security: admin/payroll-manager of the same company OR the employee themselves
         const isAdmin = [...ADMIN_ROLES, ...PAYROLL_ROLES].includes(observerRole as SystemRole);
         const isOwner = record.employee.userId === observerUserId;
         const isSameCompany = record.payrollCycle.companyId === observerCompanyId;
-
         if (!isSameCompany || (!isAdmin && !isOwner)) {
             throw new AppError('You do not have permission to access this payslip', 403);
         }
 
-        // Prepare data for template
-        const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-        const cycleDate = new Date(record.payrollCycle.month);
-        
-        const totalDeductions = Number(record.attendanceDeduction) + 
-                               Number(record.pfDeduction) + 
-                               Number(record.esiDeduction) + 
-                               Number(record.ptDeduction) + 
-                               Number(record.incomeTax) + 
-                               Number(record.otherDeductions);
+        // ── Derived values ───────────────────────────────────────────
+        const monthNames = ['January','February','March','April','May','June',
+                            'July','August','September','October','November','December'];
+        const cycleDate   = new Date(record.payrollCycle.month);
+        const daysAbsent  = Math.max(0, record.workingDays - record.presentDays);
+        const perDayRate  = record.workingDays > 0
+            ? Number(record.grossSalary) / record.workingDays
+            : 0;
 
+        const totalDeductions =
+            Number(record.attendanceDeduction) +
+            Number(record.pfDeduction) +
+            Number(record.esiDeduction) +
+            Number(record.ptDeduction) +
+            Number(record.incomeTax) +
+            Number(record.otherDeductions);
+
+        const netSalaryNum = Number(record.netSalary);
+        const cycleStatus  = record.payrollCycle.status;
+
+        const workLocationName = (record.payrollCycle as any).workLocation?.name || 'N/A';
+
+        // ── Template data object ─────────────────────────────────────
         const data = {
-            companyName: record.payrollCycle.company.name,
-            companyAddress: record.payrollCycle.company.address || 'N/A', 
-            month: monthNames[cycleDate.getMonth()],
-            year: cycleDate.getFullYear(),
-            employeeName: `${record.employee.personalDetails?.firstName || ''} ${record.employee.personalDetails?.lastName || ''}`.trim() || record.employee.user.email,
-            employeeCode: record.employee.employeeCode,
-            designation: record.employee.jobDetails?.designation || 'N/A',
-            departmentName: record.employee.department.name,
-            bankName: record.employee.bankDetails?.bankName || 'N/A',
-            accountNumber: record.employee.bankDetails?.accountNumber || 'N/A',
-            workingDays: record.workingDays,
-            presentDays: record.presentDays,
-            basicSalary: record.basicSalary,
-            hra: record.hra,
-            transportAllowance: record.transportAllowance,
-            otherAllowances: record.otherAllowances,
-            grossSalary: record.grossSalary,
-            attendanceDeduction: record.attendanceDeduction,
-            pfDeduction: record.pfDeduction,
-            esiDeduction: record.esiDeduction,
-            ptDeduction: record.ptDeduction,
-            incomeTax: Number(record.incomeTax) + Number(record.otherDeductions),
-            totalDeductions: totalDeductions.toFixed(2),
-            currency: 'INR', // Avoided ₹ symbol as it causes encoding errors in basic PDF fonts
-            netSalary: record.netSalary,
-            netSalaryInWords: 'Amount in words logic' // Simplification
+            companyName:          record.payrollCycle.company.name,
+            companyAddress:       (record.payrollCycle.company as any).address
+                                      || (record.payrollCycle.company as any).industryType
+                                      ? `Industry: ${(record.payrollCycle.company as any).industryType}`
+                                      : 'N/A',
+            month:                monthNames[cycleDate.getMonth()],
+            year:                 cycleDate.getFullYear(),
+            generatedDate:        new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }),
+            employeeName:         `${record.employee.personalDetails?.firstName || ''} ${record.employee.personalDetails?.lastName || ''}`.trim() || record.employee.user.email,
+            employeeCode:         record.employee.employeeCode,
+            designation:          record.employee.jobDetails?.designation || 'N/A',
+            departmentName:       record.employee.department.name,
+            workLocation:         workLocationName,
+            joinDate:             record.employee.dateOfJoining
+                                      ? new Date(record.employee.dateOfJoining).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                                      : 'N/A',
+            cycleStatus:          cycleStatus.charAt(0).toUpperCase() + cycleStatus.slice(1),
+            statusClass:          cycleStatus === 'finalized' ? 'status-finalized' : 'status-draft',
+
+            // Bank
+            bankName:             record.employee.bankDetails?.bankName    || 'N/A',
+            accountNumber:        record.employee.bankDetails?.accountNumber || 'N/A',
+            ifscCode:             record.employee.bankDetails?.ifscCode     || 'N/A',
+            branchName:           record.employee.bankDetails?.branchName   || 'N/A',
+
+            // Attendance
+            workingDays:          record.workingDays,
+            presentDays:          record.presentDays,
+            daysAbsent,
+            perDayRate:           formatINR(perDayRate),
+
+            // Earnings
+            currency:             '₹',
+            basicSalary:          formatINR(record.basicSalary),
+            hra:                  formatINR(record.hra),
+            transportAllowance:   formatINR(record.transportAllowance),
+            otherAllowances:      formatINR(record.otherAllowances),
+            grossSalary:          formatINR(record.grossSalary),
+
+            // Deductions
+            attendanceDeduction:  formatINR(record.attendanceDeduction),
+            pfDeduction:          formatINR(record.pfDeduction),
+            esiDeduction:         formatINR(record.esiDeduction),
+            ptDeduction:          formatINR(record.ptDeduction),
+            incomeTax:            formatINR(record.incomeTax),
+            otherDeductions:      formatINR(record.otherDeductions),
+            totalDeductions:      formatINR(totalDeductions),
+
+            // Net
+            netSalary:            formatINR(netSalaryNum),
+            netSalaryInWords:     numberToWords(netSalaryNum),
         };
 
-        // Load and compile template
+        // ── Render HTML from Handlebars template ─────────────────────
         const templatePath = path.join(__dirname, 'templates', 'payslip.hbs');
         const templateHtml = fs.readFileSync(templatePath, 'utf8');
-        const template = Handlebars.compile(templateHtml);
-        const html = template(data);
+        const html = Handlebars.compile(templateHtml)(data);
 
-        // For now, we generate a basic PDF with text using pdf-lib 
-        // since html-pdf-node requires heavy dependencies or puppeteer
-        // In a real prod environment we'd use a high fidelity HTML-to-PDF converter
-        const pdfDoc = await PDFDocument.create();
-        const page = pdfDoc.addPage();
-        const { height } = page.getSize();
-        
-        // Very basic PDF implementation just to show the result
-        // A better approach in production would be using 'html-pdf' or equivalent
-        page.drawText(`PAYSLIP - ${data.month} ${data.year}`, { x: 50, y: height - 50, size: 20 });
-        page.drawText(`Company: ${data.companyName}`, { x: 50, y: height - 80, size: 12 });
-        page.drawText(`Employee: ${data.employeeName} (${data.employeeCode})`, { x: 50, y: height - 100, size: 12 });
-        page.drawText(`--------------------------------------------------`, { x: 50, y: height - 120, size: 12 });
-        page.drawText(`Gross Salary: ${data.currency} ${data.grossSalary}`, { x: 50, y: height - 140, size: 12 });
-        page.drawText(`Total Deductions: ${data.currency} ${data.totalDeductions}`, { x: 50, y: height - 160, size: 12 });
-        page.drawText(`Net Payable: ${data.currency} ${data.netSalary}`, { x: 50, y: height - 190, size: 15 });
-
-        const pdfBytes = await pdfDoc.save();
-        return Buffer.from(pdfBytes);
+        // ── Convert to PDF using Puppeteer ───────────────────────────
+        // Use system Edge/Chrome to avoid bundled Chromium V8 snapshot issues on Windows
+        const executablePath = findSystemBrowser();
+        const browser = await puppeteer.launch({
+            headless: true,
+            protocolTimeout: 60000,
+            ...(executablePath ? { executablePath } : {}),
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-gpu',
+                '--disable-extensions',
+                '--disable-background-networking',
+            ]
+        });
+        try {
+            const page = await browser.newPage();
+            await page.setContent(html, { waitUntil: 'networkidle0' });
+            const pdfBuffer = await page.pdf({
+                format: 'A4',
+                printBackground: true,
+                margin: { top: '0', right: '0', bottom: '0', left: '0' }
+            });
+            return Buffer.from(pdfBuffer);
+        } finally {
+            await browser.close();
+        }
     }
 
     async updateRecord(companyId: string, id: string, data: UpdatePayrollRecordInput) {

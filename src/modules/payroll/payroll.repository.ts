@@ -149,7 +149,8 @@ export class PayrollRepository {
             include: {
                 payrollCycle: {
                     include: {
-                        company: true
+                        company: true,
+                        workLocation: true
                     }
                 },
                 employee: {
