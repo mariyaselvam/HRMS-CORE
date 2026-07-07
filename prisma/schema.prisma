@@ -31,6 +31,7 @@ model Company {
   workflows      Workflow[]
   payrollRule    PayrollRule?
   payrollRuns    PayrollRun[]
+  compensationCycles CompensationCycle[]
 
   @@map("companies")
 }
@@ -225,6 +226,7 @@ model Employee {
   overtimeRecords   OvertimeRecord[]
   payrollRecords    PayrollRecord[]
   salaryStructures  SalaryStructure[]
+  salaryRevisions   SalaryRevision[]
 
   @@unique([companyId, employeeCode])
   @@map("employees")
@@ -674,3 +676,39 @@ model PayrollRun {
 
   @@map("payroll_runs")
 }
+
+model CompensationCycle {
+  id             String           @id @default(uuid()) @db.Uuid
+  companyId      String           @map("company_id") @db.Uuid
+  name           String
+  status         String           @default("draft") // draft, pending_approval, approved, applied
+  effectiveFrom  DateTime         @map("effective_from") @db.Date
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  
+  company        Company          @relation(fields: [companyId], references: [id])
+  revisions      SalaryRevision[]
+
+  @@map("compensation_cycles")
+}
+
+model SalaryRevision {
+  id                  String            @id @default(uuid()) @db.Uuid
+  compensationCycleId String            @map("compensation_cycle_id") @db.Uuid
+  employeeId          String            @map("employee_id") @db.Uuid
+  currentGross        Decimal           @map("current_gross") @db.Decimal(12, 2)
+  proposedGross       Decimal           @map("proposed_gross") @db.Decimal(12, 2)
+  basicSalary         Decimal           @map("basic_salary") @db.Decimal(12, 2)
+  hra                 Decimal           @default(0) @db.Decimal(12, 2)
+  transportAllowance  Decimal           @default(0) @map("transport_allowance") @db.Decimal(12, 2)
+  otherAllowances     Decimal           @default(0) @map("other_allowances") @db.Decimal(12, 2)
+  status              String            @default("draft") // draft, approved, rejected
+  createdAt           DateTime          @default(now()) @map("created_at")
+  updatedAt           DateTime          @updatedAt @map("updated_at")
+
+  compensationCycle   CompensationCycle @relation(fields: [compensationCycleId], references: [id])
+  employee            Employee          @relation(fields: [employeeId], references: [id])
+
+  @@unique([compensationCycleId, employeeId])
+  @@map("salary_revisions")
+}

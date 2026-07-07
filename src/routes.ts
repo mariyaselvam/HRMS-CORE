@@ -39,6 +39,8 @@ router.use('/shifts', shiftRoutes);
 router.use('/leave', leaveRoutes);
 
 // Payroll routes
+import compensationRoutes from './modules/payroll/compensation.routes';
+router.use('/payroll/compensation', compensationRoutes);
 router.use('/payroll', payrollRoutes);
 
 // Dashboard routes
