@@ -11,6 +11,8 @@ import dashboardRoutes from './modules/dashboard/dashboard.routes';
 import testingRoutes from './modules/testing/testing.routes';
 import shiftRoutes from './modules/shifts/shifts.routes';
 import settingsRoutes from './modules/settings/settings.routes';
+import compensationRoutes from './modules/payroll/compensation.routes';
+import salaryConfigRoutes from './modules/payroll/salary-configuration.routes';
 
 const router = Router();
 
@@ -39,8 +41,8 @@ router.use('/shifts', shiftRoutes);
 router.use('/leave', leaveRoutes);
 
 // Payroll routes
-import compensationRoutes from './modules/payroll/compensation.routes';
 router.use('/payroll/compensation', compensationRoutes);
+router.use('/payroll/config', salaryConfigRoutes);
 router.use('/payroll', payrollRoutes);
 
 // Dashboard routes

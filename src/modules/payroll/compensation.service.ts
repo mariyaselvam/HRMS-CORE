@@ -1,6 +1,8 @@
 import { CompensationRepository } from './compensation.repository';
 import prisma from '../../common/utils/prisma';
 import { AppError, NotFoundError } from '../../common/errors/AppError';
+import { PayrollCalculationEngine } from './payroll-calculation.engine';
+
 
 export class CompensationService {
     private repository: CompensationRepository;
@@ -84,15 +86,50 @@ export class CompensationService {
 
             proposedGross = Math.round(proposedGross);
 
-            // Compute standard component split:
-            // Basic = 50% of Gross
-            // HRA = 40% of Basic
-            // Transport = same or default
-            // Other allowances = remainder
-            const basic = Math.round(proposedGross * 0.50);
-            const hra = Math.round(basic * 0.40);
-            const transport = Number(currentSalary.transportAllowance);
-            const other = Math.max(0, proposedGross - (basic + hra + transport));
+            let basic = 0;
+            let hra = 0;
+            let transport = 0;
+            let other = 0;
+
+            if (emp.salaryTemplateId) {
+                const template = await prisma.salaryTemplate.findUnique({
+                    where: { id: emp.salaryTemplateId },
+                    include: { items: { include: { component: true } } }
+                });
+
+                if (template) {
+                    const engineInputs = template.items.map(item => ({
+                        id: item.id,
+                        code: item.component.code,
+                        name: item.component.name,
+                        type: item.component.type as 'earning' | 'deduction',
+                        calcType: item.calcType || item.component.calcType,
+                        calcValue: item.calcValue !== null ? Number(item.calcValue) : Number(item.component.calcValue),
+                        formula: item.component.formula || undefined,
+                        pfApplicable: item.component.pfApplicable,
+                        esiApplicable: item.component.esiApplicable,
+                        calculationOrder: item.calculationOrder
+                    }));
+
+                    const calculation = PayrollCalculationEngine.calculate(proposedGross, engineInputs);
+                    
+                    // Map results back to core database attributes
+                    basic = calculation.breakdown.find(c => c.code === 'BASIC')?.value || 0;
+                    hra = calculation.breakdown.find(c => c.code === 'HRA')?.value || 0;
+                    transport = calculation.breakdown.find(c => c.code === 'TRANSPORT')?.value || 0;
+                    other = calculation.breakdown.find(c => c.code === 'SPECIAL')?.value 
+                         || calculation.breakdown.find(c => c.code === 'OTHER')?.value 
+                         || 0;
+                }
+            }
+
+            // Fallback to legacy standard default calculation if no template is configured
+            if (basic === 0) {
+                basic = Math.round(proposedGross * 0.50);
+                hra = Math.round(basic * 0.40);
+                transport = Number(currentSalary.transportAllowance);
+                other = Math.max(0, proposedGross - (basic + hra + transport));
+            }
 
             revisionsToUpsert.push({
                 compensationCycleId: cycleId,
