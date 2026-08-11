@@ -86,14 +86,30 @@ export class DashboardRepository {
         };
     }
 
-    async getAttendanceOverview(companyId: string, locationId?: string) {
+    async getAttendanceOverview(companyId: string, locationId?: string, startDateStr?: string, endDateStr?: string) {
         const dates: Date[] = [];
-        for (let i = 6; i >= 0; i--) {
-            const d = new Date();
-            d.setUTCHours(0, 0, 0, 0);
-            d.setDate(d.getDate() - i);
-            dates.push(d);
+        if (startDateStr && endDateStr) {
+            const start = new Date(startDateStr);
+            start.setUTCHours(0, 0, 0, 0);
+            const end = new Date(endDateStr);
+            end.setUTCHours(0, 0, 0, 0);
+
+            const cursor = new Date(start);
+            let safetyLimit = 31;
+            while (cursor <= end && safetyLimit > 0) {
+                dates.push(new Date(cursor));
+                cursor.setDate(cursor.getDate() + 1);
+                safetyLimit--;
+            }
+        } else {
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date();
+                d.setUTCHours(0, 0, 0, 0);
+                d.setDate(d.getDate() - i);
+                dates.push(d);
+            }
         }
+
 
         const overview = await Promise.all(dates.map(async (date) => {
             const baseWhere: any = {

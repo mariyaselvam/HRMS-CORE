@@ -38,7 +38,7 @@ describe('DashboardService', () => {
             expect(dashboardRepositoryMock.getAttendanceToday).toHaveBeenCalledWith(mockCompanyId, undefined);
             expect(dashboardRepositoryMock.getPendingRequests).toHaveBeenCalledWith(mockCompanyId, undefined);
             expect(dashboardRepositoryMock.getPayrollSummary).toHaveBeenCalledWith(mockCompanyId, undefined);
-            expect(dashboardRepositoryMock.getAttendanceOverview).toHaveBeenCalledWith(mockCompanyId, undefined);
+            expect(dashboardRepositoryMock.getAttendanceOverview).toHaveBeenCalledWith(mockCompanyId, undefined, undefined, undefined);
 
             expect(result).toEqual({
                 employees: mockEmployeeStats,
