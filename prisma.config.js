@@ -5,4 +5,7 @@ module.exports = {
     datasource: {
         url: process.env.DIRECT_URL,
     },
+    migrations: {
+        seed: 'ts-node --transpile-only prisma/seed.ts',
+    },
 };

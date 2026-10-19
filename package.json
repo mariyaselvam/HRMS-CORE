@@ -7,6 +7,7 @@
     "start": "node dist/src/main.js",
     "dev": "ts-node-dev --respawn --transpile-only src/main.ts",
     "test": "jest",
+    "seed": "ts-node --transpile-only -r dotenv/config prisma/seed.ts",
     "simulate": "ts-node tests/scenarios/full-hrms-workflow.ts",
     "simulate:perf": "ts-node tests/scripts/simulate-performance.ts"
   },

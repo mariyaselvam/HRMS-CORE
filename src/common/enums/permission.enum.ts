@@ -1,3 +1,5 @@
+import { SystemRole } from './role.enum';
+
 /**
  * Predefined system permissions for the HRMS application.
  *
@@ -71,11 +73,42 @@ export enum SystemPermission {
  * Used during company creation seeding.
  */
 export const DEFAULT_ROLE_PERMISSIONS: Record<string, SystemPermission[]> = {
-    'Super Admin': Object.values(SystemPermission), // Full access
+    [SystemRole.SUPER_ADMIN]: Object.values(SystemPermission), // Full access
 
-    'Company Admin': Object.values(SystemPermission), // Full access within company
+    [SystemRole.COMPANY_ADMIN]: Object.values(SystemPermission), // Full access within company
 
-    'HR Manager': [
+    [SystemRole.CLUSTER_MANAGER]: [
+        SystemPermission.EMPLOYEE_VIEW,
+        SystemPermission.EMPLOYEE_CREATE,
+        SystemPermission.EMPLOYEE_EDIT,
+        SystemPermission.EMPLOYEE_ONBOARD,
+        SystemPermission.ATTENDANCE_VIEW,
+        SystemPermission.ATTENDANCE_EDIT,
+        SystemPermission.LEAVE_VIEW,
+        SystemPermission.LEAVE_APPROVE,
+        SystemPermission.LEAVE_CONFIG,
+        SystemPermission.PAYROLL_VIEW,
+        SystemPermission.PAYROLL_PROCESS,
+        SystemPermission.PAYROLL_ADJUST,
+        SystemPermission.PAYROLL_FINALIZE,
+        SystemPermission.PAYROLL_CONFIG,
+        SystemPermission.PAYSLIP_VIEW,
+        SystemPermission.PAYSLIP_DOWNLOAD,
+        SystemPermission.DEPARTMENT_VIEW,
+        SystemPermission.DEPARTMENT_MANAGE,
+        SystemPermission.TEAM_VIEW,
+        SystemPermission.TEAM_MANAGE,
+        SystemPermission.LOCATION_VIEW,
+        SystemPermission.LOCATION_MANAGE,
+        SystemPermission.HOLIDAY_VIEW,
+        SystemPermission.HOLIDAY_MANAGE,
+        SystemPermission.DASHBOARD_VIEW,
+        SystemPermission.DASHBOARD_ADMIN,
+        SystemPermission.PROFILE_VIEW,
+        SystemPermission.PROFILE_EDIT,
+    ],
+
+    [SystemRole.HR_MANAGER]: [
         SystemPermission.EMPLOYEE_VIEW,
         SystemPermission.EMPLOYEE_CREATE,
         SystemPermission.EMPLOYEE_EDIT,
@@ -101,7 +134,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, SystemPermission[]> = {
         SystemPermission.PROFILE_EDIT,
     ],
 
-    'Payroll Manager': [
+    [SystemRole.PAYROLL_MANAGER]: [
         SystemPermission.EMPLOYEE_VIEW,
         SystemPermission.PAYROLL_VIEW,
         SystemPermission.PAYROLL_PROCESS,
@@ -116,7 +149,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, SystemPermission[]> = {
         SystemPermission.PROFILE_EDIT,
     ],
 
-    'Onboarding Manager': [
+    [SystemRole.ONBOARDING_MANAGER]: [
         SystemPermission.EMPLOYEE_VIEW,
         SystemPermission.EMPLOYEE_CREATE,
         SystemPermission.EMPLOYEE_EDIT,
@@ -129,7 +162,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, SystemPermission[]> = {
         SystemPermission.PROFILE_EDIT,
     ],
 
-    'Branch Manager': [
+    [SystemRole.BRANCH_MANAGER]: [
         SystemPermission.EMPLOYEE_VIEW,
         SystemPermission.ATTENDANCE_VIEW,
         SystemPermission.ATTENDANCE_EDIT,
@@ -147,7 +180,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<string, SystemPermission[]> = {
         SystemPermission.PROFILE_EDIT,
     ],
 
-    'Employee': [
+    [SystemRole.EMPLOYEE]: [
         SystemPermission.PROFILE_VIEW,
         SystemPermission.PROFILE_EDIT,
         SystemPermission.LEAVE_VIEW,
