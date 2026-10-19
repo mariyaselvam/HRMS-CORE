@@ -1,7 +1,17 @@
 import { Router } from 'express';
 import { OrganizationController } from './organization.controller';
 import { authenticate } from '../../common/middleware/auth.middleware';
-import { validateCreateDepartment, validateUpdateDepartment, validateCreateTeam, validateCreateLocation, validateCreateRole, validateUpdateRole, validateAssignPermissions } from './organization.validator';
+import {
+    validateCreateDepartment,
+    validateUpdateDepartment,
+    validateCreateTeam,
+    validateCreateLocation,
+    validateCreateRole,
+    validateUpdateRole,
+    validateAssignPermissions,
+    validateCreateCluster,
+    validateUpdateCluster
+} from './organization.validator';
 import { requireRole } from '../../common/middleware/auth.middleware';
 import { SystemRole } from '../../common/enums/role.enum';
 
@@ -32,6 +42,15 @@ router.delete('/teams/:id', controller.deleteTeam);
 // Locations
 router.post('/locations', validateCreateLocation, controller.createLocation);
 router.get('/locations', controller.getLocations);
+router.get('/locations/:id/effective-policies', controller.getEffectiveLocationPolicies);
+
+// Clusters
+router.post('/clusters', validateCreateCluster, controller.createCluster);
+router.get('/clusters', controller.getClusters);
+router.get('/clusters/:id', controller.getClusterById);
+router.patch('/clusters/:id', validateUpdateCluster, controller.updateCluster);
+router.delete('/clusters/:id', controller.deleteCluster);
+router.patch('/branches/:branchId/cluster', controller.assignBranchToCluster);
 
 // Admin-only routes for role/permission management
 router.post('/roles', requireRole([SystemRole.SUPER_ADMIN, SystemRole.COMPANY_ADMIN]), validateCreateRole, controller.createRole);

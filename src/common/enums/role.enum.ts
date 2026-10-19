@@ -12,6 +12,7 @@
 export enum SystemRole {
     SUPER_ADMIN = 'Super Admin',
     COMPANY_ADMIN = 'Company Admin',
+    CLUSTER_MANAGER = 'Cluster Manager',
     HR_MANAGER = 'HR Manager',
     PAYROLL_MANAGER = 'Payroll Manager',
     ONBOARDING_MANAGER = 'Onboarding Manager',
@@ -20,11 +21,12 @@ export enum SystemRole {
 }
 
 /**
- * Roles that have administrative privileges across the company.
+ * Roles that have administrative privileges across the company or region.
  */
 export const ADMIN_ROLES: SystemRole[] = [
     SystemRole.SUPER_ADMIN,
-    SystemRole.COMPANY_ADMIN
+    SystemRole.COMPANY_ADMIN,
+    SystemRole.CLUSTER_MANAGER
 ];
 
 /**
@@ -33,6 +35,7 @@ export const ADMIN_ROLES: SystemRole[] = [
 export const HR_ROLES: SystemRole[] = [
     SystemRole.SUPER_ADMIN,
     SystemRole.COMPANY_ADMIN,
+    SystemRole.CLUSTER_MANAGER,
     SystemRole.HR_MANAGER
 ];
 
@@ -42,6 +45,7 @@ export const HR_ROLES: SystemRole[] = [
 export const PAYROLL_ROLES: SystemRole[] = [
     SystemRole.SUPER_ADMIN,
     SystemRole.COMPANY_ADMIN,
+    SystemRole.CLUSTER_MANAGER,
     SystemRole.PAYROLL_MANAGER
 ];
 
@@ -51,6 +55,7 @@ export const PAYROLL_ROLES: SystemRole[] = [
 export const APPROVAL_ROLES: SystemRole[] = [
     SystemRole.SUPER_ADMIN,
     SystemRole.COMPANY_ADMIN,
+    SystemRole.CLUSTER_MANAGER,
     SystemRole.HR_MANAGER,
     SystemRole.BRANCH_MANAGER
 ];

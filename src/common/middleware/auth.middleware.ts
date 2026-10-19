@@ -8,6 +8,7 @@ export interface UserPayload {
     companyId: string;
     role: string;
     workLocationId?: string;
+    clusterId?: string;
 }
 
 declare global {
@@ -15,6 +16,7 @@ declare global {
         interface Request {
             user?: UserPayload;
             activeBranchId?: string;
+            activeClusterId?: string;
         }
     }
 }
@@ -39,6 +41,14 @@ export const authenticate = (req: Request, res: Response, next: NextFunction) =>
         } else if (decoded.workLocationId) {
             // Default to user's assigned branch if no header (for branch managers)
             req.activeBranchId = decoded.workLocationId;
+        }
+
+        // Extract cluster context from header or token
+        const clusterId = req.headers['x-cluster-id'];
+        if (clusterId && typeof clusterId === 'string') {
+            req.activeClusterId = clusterId;
+        } else if (decoded.clusterId) {
+            req.activeClusterId = decoded.clusterId;
         }
 
         next();

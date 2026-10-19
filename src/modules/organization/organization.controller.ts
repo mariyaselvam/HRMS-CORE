@@ -70,7 +70,8 @@ export class OrganizationController {
 
     getLocations = async (req: Request, res: Response) => {
         const companyId = req.user!.companyId;
-        const locations = await this.orgService.getLocations(companyId);
+        const clusterId = req.query.clusterId as string | undefined;
+        const locations = await this.orgService.getLocations(companyId, clusterId);
         res.json({ success: true, data: locations });
     };
 
@@ -143,4 +144,58 @@ export class OrganizationController {
         await this.orgService.removePermissionFromRole(roleId, companyId, permissionId);
         res.json({ success: true, message: 'Permission removed successfully' });
     };
+
+    // --- Clusters ---
+    createCluster = async (req: Request, res: Response) => {
+        const companyId = req.user!.companyId;
+        const cluster = await this.orgService.createCluster(companyId, req.body);
+        res.status(201).json({ success: true, data: cluster });
+    };
+
+    getClusters = async (req: Request, res: Response) => {
+        const companyId = req.user!.companyId;
+        const clusters = await this.orgService.getClusters(companyId);
+        res.json({ success: true, data: clusters });
+    };
+
+    getClusterById = async (req: Request, res: Response) => {
+        const companyId = req.user!.companyId;
+        const id = req.params.id as string;
+        const cluster = await this.orgService.getClusterById(id, companyId);
+        if (!cluster) {
+            return res.status(404).json({ success: false, message: 'Cluster not found' });
+        }
+        res.json({ success: true, data: cluster });
+    };
+
+    updateCluster = async (req: Request, res: Response) => {
+        const companyId = req.user!.companyId;
+        const id = req.params.id as string;
+        const cluster = await this.orgService.updateCluster(id, companyId, req.body);
+        res.json({ success: true, data: cluster });
+    };
+
+    deleteCluster = async (req: Request, res: Response) => {
+        const companyId = req.user!.companyId;
+        const id = req.params.id as string;
+        await this.orgService.deleteCluster(id, companyId);
+        res.json({ success: true, message: 'Cluster deleted successfully' });
+    };
+
+    assignBranchToCluster = async (req: Request, res: Response) => {
+        const companyId = req.user!.companyId;
+        const branchId = req.params.branchId as string;
+        const { clusterId } = req.body;
+        const updatedBranch = await this.orgService.assignBranchToCluster(branchId, clusterId || null, companyId);
+        res.json({ success: true, data: updatedBranch });
+    };
+
+    getEffectiveLocationPolicies = async (req: Request, res: Response) => {
+        const companyId = req.user!.companyId;
+        const locationId = req.params.id as string;
+        const year = req.query.year ? parseInt(req.query.year as string, 10) : undefined;
+        const policies = await this.orgService.getEffectiveLocationPolicies(companyId, locationId, year);
+        res.json({ success: true, data: policies });
+    };
 }
+

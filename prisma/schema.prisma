@@ -29,7 +29,8 @@ model Company {
   users          User[]
   workLocations  WorkLocation[]
   workflows      Workflow[]
-  payrollRule    PayrollRule?
+  clusters       Cluster[]
+  payrollRules   PayrollRule[]
   payrollRuns    PayrollRun[]
   compensationCycles CompensationCycle[]
   salaryComponents SalaryComponent[]
@@ -45,6 +46,7 @@ model User {
   passwordHash    String             @map("password_hash")
   roleId          String             @map("role_id") @db.Uuid
   workLocationId  String?            @map("work_location_id") @db.Uuid
+  clusterId       String?            @map("cluster_id") @db.Uuid
   fcmToken        String?            @map("fcm_token")
   isActive        Boolean            @default(true) @map("is_active")
   lastLoginAt     DateTime?          @map("last_login_at")
@@ -59,6 +61,7 @@ model User {
   company         Company            @relation(fields: [companyId], references: [id])
   role            Role               @relation(fields: [roleId], references: [id])
   workLocation    WorkLocation?      @relation(fields: [workLocationId], references: [id])
+  cluster         Cluster?           @relation(fields: [clusterId], references: [id])
 
   @@unique([companyId, email])
   @@map("users")
@@ -132,9 +135,27 @@ model Team {
   @@map("teams")
 }
 
+model Cluster {
+  id             String         @id @default(uuid()) @db.Uuid
+  companyId      String         @map("company_id") @db.Uuid
+  name           String
+  code           String?
+  state          String?
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @default(now()) @map("updated_at")
+  company        Company        @relation(fields: [companyId], references: [id])
+  workLocations  WorkLocation[]
+  holidays       Holiday[]
+  users          User[]
+
+  @@unique([companyId, name])
+  @@map("clusters")
+}
+
 model WorkLocation {
   id             String          @id @default(uuid()) @db.Uuid
   companyId      String          @map("company_id") @db.Uuid
+  clusterId      String?         @map("cluster_id") @db.Uuid
   name           String
   address        String?
   geoRequired    Boolean         @default(false) @map("geo_required")
@@ -146,10 +167,13 @@ model WorkLocation {
   employees      Employee[]
   holidays       Holiday[]
   payrollCycles  PayrollCycle[]
+  payrollRules   PayrollRule[]
+  shifts         Shift[]
   users          User[]
   departments    Department[]
   teams          Team[]
   company        Company         @relation(fields: [companyId], references: [id])
+  cluster        Cluster?        @relation(fields: [clusterId], references: [id])
 
   @@map("work_locations")
 }
@@ -157,6 +181,7 @@ model WorkLocation {
 model Shift {
   id             String          @id @default(uuid()) @db.Uuid
   companyId      String          @map("company_id") @db.Uuid
+  workLocationId String?         @map("work_location_id") @db.Uuid
   name           String
   code           String          @map("code") @default("SHIFT")
   startTime      DateTime        @map("start_time") @db.Time(6)
@@ -169,6 +194,7 @@ model Shift {
   attendanceLogs AttendanceLog[]
   employeeShifts EmployeeShift[]
   company        Company         @relation(fields: [companyId], references: [id])
+  workLocation   WorkLocation?   @relation(fields: [workLocationId], references: [id])
 
   @@unique([companyId, code])
   @@map("shifts")
@@ -447,14 +473,16 @@ model Holiday {
   id             String        @id @default(uuid()) @db.Uuid
   companyId      String        @map("company_id") @db.Uuid
   workLocationId String?       @map("work_location_id") @db.Uuid
+  clusterId      String?       @map("cluster_id") @db.Uuid
   date           DateTime      @db.Date
   name           String
   isOptional     Boolean       @default(false) @map("is_optional")
   createdAt      DateTime      @default(now()) @map("created_at")
   company        Company       @relation(fields: [companyId], references: [id])
   workLocation   WorkLocation? @relation(fields: [workLocationId], references: [id])
+  cluster        Cluster?      @relation(fields: [clusterId], references: [id])
 
-  @@unique([companyId, workLocationId, date])
+  @@unique([companyId, workLocationId, clusterId, date])
   @@map("holidays")
 }
 
@@ -653,7 +681,8 @@ model SystemSetting {
 
 model PayrollRule {
   id                      String    @id @default(uuid()) @db.Uuid
-  companyId               String    @unique @map("company_id") @db.Uuid
+  companyId               String    @map("company_id") @db.Uuid
+  workLocationId          String?       @map("work_location_id") @db.Uuid
   frequencyType           String    @map("frequency_type")
   processingMode          String    @map("processing_mode")
   payrollDateType         String    @map("payroll_date_type")
@@ -668,7 +697,9 @@ model PayrollRule {
   updatedAt               DateTime  @updatedAt @map("updated_at")
 
   company Company @relation(fields: [companyId], references: [id])
+  workLocation            WorkLocation? @relation(fields: [workLocationId], references: [id])
 
+  @@unique([companyId, workLocationId])
   @@map("payroll_rules")
 }
 
@@ -778,4 +809,4 @@ model SalaryTemplateItem {
   @@unique([salaryTemplateId, salaryComponentId])
   @@map("salary_template_items")
 }
-
+

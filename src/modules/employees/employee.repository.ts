@@ -60,13 +60,20 @@ export class EmployeeRepository {
         },
       });
 
+      let targetLocationId = data.workLocationId;
+      if (!targetLocationId) {
+        const defaultLoc = await tx.workLocation.findFirst({ where: { companyId } });
+        if (!defaultLoc) throw new Error('No work location exists for company');
+        targetLocationId = defaultLoc.id;
+      }
+
       const employee = await tx.employee.create({
         data: {
           employeeCode: data.employeeCode,
           userId: user.id,
           companyId,
           departmentId: data.departmentId,
-          workLocationId: data.workLocationId,
+          workLocationId: targetLocationId,
           managerId: data.managerId,
           dateOfJoining: new Date(data.dateOfJoining),
           employmentStatus: data.status || "probation",

@@ -19,9 +19,9 @@ async function testAdminLogs() {
 
     // Test as Admin (should show all since no employeeId filter)
     const allLogs = await service.getAttendanceHistory(companyId, undefined, 'Admin', {});
-    console.log(`Total logs returned for Admin: ${allLogs.length}`);
+    console.log(`Total logs returned for Admin: ${allLogs.records.length}`);
 
-    const uniqueEmployees = new Set(allLogs.map(l => l.employeeId));
+    const uniqueEmployees = new Set(allLogs.records.map((l: any) => l.employeeId));
     console.log(`Number of unique employees in logs: ${uniqueEmployees.size}`);
 
     // Test as Employee (should only show their own logs)
@@ -29,8 +29,8 @@ async function testAdminLogs() {
     const user = await prisma.user.findUnique({ where: { id: emp.userId } });
     if (user) {
         const empLogs = await service.getAttendanceHistory(companyId, user.id, 'Employee', {});
-        console.log(`Total logs returned for Employee ${user.email}: ${empLogs.length}`);
-        const uniqueEmpEmployees = new Set(empLogs.map(l => l.employeeId));
+        console.log(`Total logs returned for Employee ${user.email}: ${empLogs.records.length}`);
+        const uniqueEmpEmployees = new Set(empLogs.records.map((l: any) => l.employeeId));
         console.log(`Unique employees in Employee logs: ${Array.from(uniqueEmpEmployees)}`);
     }
 

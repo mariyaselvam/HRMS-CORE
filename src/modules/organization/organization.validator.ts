@@ -36,12 +36,30 @@ export const createWorkLocationSchema = z.object({
     address: z.string().optional(),
     latitude: z.coerce.number().optional().nullable(),
     longitude: z.coerce.number().optional().nullable(),
+    clusterId: z.string().uuid("Invalid cluster ID format").optional().nullable(),
+});
+
+/**
+ * Cluster Validation Schemas
+ */
+export const createClusterSchema = z.object({
+    name: z.string().min(1, "Cluster name is required"),
+    code: z.string().min(1, "Cluster code is required"),
+    state: z.string().optional().nullable(),
+});
+
+export const updateClusterSchema = z.object({
+    name: z.string().min(1, "Cluster name is required").optional(),
+    code: z.string().min(1, "Cluster code is required").optional(),
+    state: z.string().optional().nullable(),
 });
 
 export const validateCreateDepartment = validateRequest(createDepartmentSchema);
 export const validateUpdateDepartment = validateRequest(updateDepartmentSchema);
 export const validateCreateTeam = validateRequest(createTeamSchema);
 export const validateCreateLocation = validateRequest(createWorkLocationSchema);
+export const validateCreateCluster = validateRequest(createClusterSchema);
+export const validateUpdateCluster = validateRequest(updateClusterSchema);
 
 export const createRoleSchema = z.object({
     name: z.string().min(1, "Role name is required"),
@@ -67,3 +85,5 @@ export type CreateTeamInput = z.infer<typeof createTeamSchema>;
 export type CreateWorkLocationInput = z.infer<typeof createWorkLocationSchema>;
 export type CreateRoleInput = z.infer<typeof createRoleSchema>;
 export type UpdateRoleInput = z.infer<typeof updateRoleSchema>;
+export type CreateClusterInput = z.infer<typeof createClusterSchema>;
+export type UpdateClusterInput = z.infer<typeof updateClusterSchema>;

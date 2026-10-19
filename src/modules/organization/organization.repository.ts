@@ -1,5 +1,12 @@
 import prisma from '../../common/utils/prisma';
-import { CreateDepartmentInput, UpdateDepartmentInput, CreateTeamInput, CreateWorkLocationInput } from './organization.validator';
+import {
+    CreateDepartmentInput,
+    UpdateDepartmentInput,
+    CreateTeamInput,
+    CreateWorkLocationInput,
+    CreateClusterInput,
+    UpdateClusterInput
+} from './organization.validator';
 
 export class OrganizationRepository {
     async findAllCompanies() {
@@ -10,6 +17,7 @@ export class OrganizationRepository {
                         employees: true,
                         departments: true,
                         workLocations: true,
+                        clusters: true,
                         users: true,
                     }
                 }
@@ -27,6 +35,7 @@ export class OrganizationRepository {
                         employees: true,
                         departments: true,
                         workLocations: true,
+                        clusters: true,
                         users: true,
                     }
                 }
@@ -101,15 +110,31 @@ export class OrganizationRepository {
                 address: data.address,
                 companyId: companyId,
                 latitude: data.latitude,
-                longitude: data.longitude
+                longitude: data.longitude,
+                clusterId: data.clusterId || null,
+            },
+            include: {
+                cluster: {
+                    select: { id: true, name: true, code: true, state: true }
+                }
             }
         });
     }
 
-    async findLocationsByCompany(companyId: string) {
+    async findLocationsByCompany(companyId: string, clusterId?: string) {
+        const where: any = { companyId };
+        if (clusterId) {
+            where.clusterId = clusterId;
+        }
         return prisma.workLocation.findMany({
-            where: { companyId },
-            include: { _count: { select: { employees: true } } }
+            where,
+            include: {
+                cluster: {
+                    select: { id: true, name: true, code: true, state: true }
+                },
+                _count: { select: { employees: true } }
+            },
+            orderBy: { name: 'asc' }
         });
     }
 
@@ -217,4 +242,94 @@ export class OrganizationRepository {
             }
         });
     }
+
+    // --- Clusters ---
+    async createCluster(companyId: string, data: CreateClusterInput) {
+        return prisma.cluster.create({
+            data: {
+                name: data.name,
+                code: data.code,
+                state: data.state || null,
+                companyId
+            }
+        });
+    }
+
+    async findClustersByCompany(companyId: string) {
+        return prisma.cluster.findMany({
+            where: { companyId },
+            include: {
+                workLocations: {
+                    select: {
+                        id: true,
+                        name: true,
+                        address: true,
+                        _count: { select: { employees: true } }
+                    }
+                },
+                _count: {
+                    select: {
+                        workLocations: true,
+                        users: true,
+                        holidays: true
+                    }
+                }
+            },
+            orderBy: { name: 'asc' }
+        });
+    }
+
+    async findClusterById(id: string, companyId: string) {
+        return prisma.cluster.findFirst({
+            where: { id, companyId },
+            include: {
+                workLocations: {
+                    select: {
+                        id: true,
+                        name: true,
+                        address: true,
+                        _count: { select: { employees: true } }
+                    }
+                },
+                holidays: true,
+                _count: {
+                    select: {
+                        workLocations: true,
+                        users: true
+                    }
+                }
+            }
+        });
+    }
+
+    async updateCluster(id: string, companyId: string, data: UpdateClusterInput) {
+        return prisma.cluster.update({
+            where: { id },
+            data: {
+                ...(data.name !== undefined ? { name: data.name } : {}),
+                ...(data.code !== undefined ? { code: data.code } : {}),
+                ...(data.state !== undefined ? { state: data.state } : {})
+            }
+        });
+    }
+
+    async deleteCluster(id: string, companyId: string) {
+        // Disassociate branches from cluster before deleting
+        await prisma.workLocation.updateMany({
+            where: { clusterId: id, companyId },
+            data: { clusterId: null }
+        });
+
+        return prisma.cluster.delete({
+            where: { id }
+        });
+    }
+
+    async assignBranchToCluster(branchId: string, clusterId: string | null, companyId: string) {
+        return prisma.workLocation.update({
+            where: { id: branchId },
+            data: { clusterId }
+        });
+    }
 }
+

@@ -6,7 +6,7 @@ export class DocumentRepository {
         return prisma.employeeDocument.create({
             data: {
                 employeeId: data.employeeId,
-                documentType: data.documentType,
+                documentType: data.documentType || 'other',
                 fileUrl: file.url,
                 fileName: file.name,
                 expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,

@@ -30,12 +30,15 @@ router.patch('/cycles/:id/finalize', controller.finalize);
 router.get('/records/:id/download', controller.downloadPayslip);
 
 // Payroll Rules
+router.get('/rules/all', rulesController.getAllRules);
 router.get('/rules', rulesController.getRule);
 router.post('/rules', rulesController.upsertRule);
 
 // Payroll Runs
+router.get('/readiness', runnerController.getReadiness);
 router.get('/runs', runnerController.listRuns);
 router.get('/runs/preview', runnerController.getRunPreview);
 router.post('/runs/execute', runnerController.executeRun);
+router.post('/runs/batch', runnerController.executeRun);
 
 export default router;
