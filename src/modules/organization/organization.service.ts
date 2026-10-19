@@ -8,6 +8,18 @@ export class OrganizationService {
         this.orgRepository = new OrganizationRepository();
     }
 
+    async getCompanies() {
+        return this.orgRepository.findAllCompanies();
+    }
+
+    async getCompanyById(id: string) {
+        return this.orgRepository.findCompanyById(id);
+    }
+
+    async updateCompanyStatus(id: string, status: string) {
+        return this.orgRepository.updateCompanyStatus(id, status);
+    }
+
     async createDepartment(companyId: string, data: CreateDepartmentInput) {
         return this.orgRepository.createDepartment(companyId, data);
     }

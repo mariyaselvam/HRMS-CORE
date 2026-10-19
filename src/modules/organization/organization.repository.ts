@@ -2,6 +2,45 @@ import prisma from '../../common/utils/prisma';
 import { CreateDepartmentInput, UpdateDepartmentInput, CreateTeamInput, CreateWorkLocationInput } from './organization.validator';
 
 export class OrganizationRepository {
+    async findAllCompanies() {
+        return prisma.company.findMany({
+            include: {
+                _count: {
+                    select: {
+                        employees: true,
+                        departments: true,
+                        workLocations: true,
+                        users: true,
+                    }
+                }
+            },
+            orderBy: { createdAt: 'desc' }
+        });
+    }
+
+    async findCompanyById(id: string) {
+        return prisma.company.findUnique({
+            where: { id },
+            include: {
+                _count: {
+                    select: {
+                        employees: true,
+                        departments: true,
+                        workLocations: true,
+                        users: true,
+                    }
+                }
+            }
+        });
+    }
+
+    async updateCompanyStatus(id: string, status: string) {
+        return prisma.company.update({
+            where: { id },
+            data: { status }
+        });
+    }
+
     async createDepartment(companyId: string, data: CreateDepartmentInput) {
         return prisma.department.create({
             data: {
@@ -100,11 +139,7 @@ export class OrganizationRepository {
     async updateTeam(id: string, companyId: string, data: Partial<CreateTeamInput>) {
         return prisma.team.update({
             where: { id, companyId },
-            data: {
-                name: data.name,
-                departmentId: data.departmentId,
-                workLocationId: data.workLocationId
-            }
+            data
         });
     }
 
@@ -117,22 +152,20 @@ export class OrganizationRepository {
     async createRole(companyId: string, data: { name: string; description?: string }) {
         return prisma.role.create({
             data: {
-                ...data,
-                companyId,
-                isSystemRole: false,
+                name: data.name,
+                description: data.description,
+                companyId: companyId
             }
         });
     }
 
     async findRolesByCompany(companyId: string) {
         return prisma.role.findMany({
-            where: { companyId },
-            include: {
-                permissions: {
-                    include: {
-                        permission: true
-                    }
-                }
+            where: {
+                OR: [
+                    { companyId: companyId },
+                    { isSystemRole: true }
+                ]
             }
         });
     }
@@ -140,10 +173,7 @@ export class OrganizationRepository {
     async updateRole(id: string, companyId: string, data: { name?: string; description?: string }) {
         return prisma.role.update({
             where: { id, companyId },
-            data: {
-                name: data.name,
-                description: data.description,
-            }
+            data
         });
     }
 
@@ -154,12 +184,10 @@ export class OrganizationRepository {
     }
 
     async assignPermissionsToRole(roleId: string, companyId: string, permissionIds: string[]) {
-        // Remove existing permissions first, then add new ones
         await prisma.rolePermission.deleteMany({
             where: { roleId }
         });
 
-        // Update role with new permissions using connect
         return prisma.role.update({
             where: { id: roleId },
             data: {

@@ -24,7 +24,8 @@ if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_TESTING_API === 
 // Auth routes
 router.use('/auth', authRoutes);
 
-// Organization routes
+// Companies & Organization routes
+router.use('/companies', orgRoutes);
 router.use('/org', orgRoutes);
 router.use('/holidays', holidayRoutes);
 
@@ -50,7 +51,6 @@ router.use('/dashboard', dashboardRoutes);
 
 // Settings routes
 router.use('/settings', settingsRoutes);
-
 
 // Health check
 router.get('/health', (req, res) => {

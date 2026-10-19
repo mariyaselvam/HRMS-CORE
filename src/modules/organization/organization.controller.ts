@@ -8,6 +8,27 @@ export class OrganizationController {
         this.orgService = new OrganizationService();
     }
 
+    getCompanies = async (req: Request, res: Response) => {
+        const companies = await this.orgService.getCompanies();
+        res.json({ success: true, data: companies });
+    };
+
+    getCompanyById = async (req: Request, res: Response) => {
+        const id = req.params.id as string;
+        const company = await this.orgService.getCompanyById(id);
+        if (!company) {
+            return res.status(404).json({ success: false, message: 'Company not found' });
+        }
+        res.json({ success: true, data: company });
+    };
+
+    updateCompanyStatus = async (req: Request, res: Response) => {
+        const id = req.params.id as string;
+        const { status } = req.body;
+        const company = await this.orgService.updateCompanyStatus(id, status);
+        res.json({ success: true, data: company });
+    };
+
     createDepartment = async (req: Request, res: Response) => {
         const companyId = req.user!.companyId;
         const department = await this.orgService.createDepartment(companyId, req.body);
