@@ -1,291 +1,0 @@
-﻿
-PeopleOps HRMS
-Product Requirements Document
-Cloud-Based Multi-Tenant HRMS SaaS Platform
-
-Version 1.0   |   February 2026   |   Status: Draft
-
-
-
-📱
-Employee App
-React Native Mobile🖥️
-Admin Dashboard
-Web - Angular + PrimeNG⚙️
-Super Admin Panel
-Web - Angular + PrimeNG
-
-
-Table of Contents
-1.Product Overview32.Problem Statement33.Platform Architecture - Three Applications4  3.1Employee Mobile App4  3.2Admin Dashboard (Web)5  3.3Super Admin Panel (Web)64.Tech Stack7  4.1Recommended Project Structure75.User Personas86.User Journey (High-Level)87.Functional Requirements - Core Modules9  7.1Company & Organization Management9  7.2Employee Management9  7.3Attendance & Time Tracking10  7.4Leave Management10  7.5Payroll Management11  7.6Employee Self-Service (ESS)11  7.7Reporting & Analytics128.Advanced & Scalable Modules (Phase 2)129.Roles & Permissions (RBAC)1310.Billing & Subscription1311.Non-Functional Requirements1412.MVP Scope1413.Success Metrics1514.Assumptions & Constraints15
-
-
-1. Product Overview
-1.1 Product Name
-Working Name: PeopleOps HRMS
-
-1.2 Product Description
-PeopleOps HRMS is a cloud-based, multi-tenant HRMS SaaS platform designed for mid-sized tech and industrial companies with 100 to 1,000 employees. It centralizes employee management, attendance, payroll, leave, approvals, and reporting into a single, secure system delivered across three purpose-built application surfaces: a React Native mobile app for employees, an Angular + PrimeNG web dashboard for HR Admins and Managers, and an Angular + PrimeNG Super Admin Panel for platform operators. All three surfaces are powered by a single shared backend - Node.js/Express built in TypeScript with a PostgreSQL database.
-
-1.3 Target Customers
-• Tech companies (software, IT services, startups at scale)
-• Industrial and manufacturing companies
-• Operations-heavy organizations with shift-based or hybrid work environments
-
-1.4 Target Users
-• Company Admin / HR Head - full platform control within their tenant
-• Managers / Team Leads - team visibility, approvals, and reporting
-• Employees - self-service attendance, leave, and payslip access
-• SaaS Super Admin - platform-level operations and client management
-
-1.5 Business Goals
-• Reduce HR operational overhead through automation
-• Eliminate manual payroll and attendance errors
-• Provide real-time workforce visibility to managers and HR
-• Enable scalable HR operations as companies grow from 100 to 1,000+ employees
-• Generate recurring SaaS revenue via per-employee monthly subscriptions
-
-
-
-2. Problem Statement
-2.1 Current Challenges
-Companies with 100 to 1,000 employees typically face the following pain points:
-• Attendance managed via Excel or fragmented, disconnected tools
-• Payroll errors due to manual calculations and lack of cross-system data
-• Poor visibility into employee time, leave consumption, and cost
-• Complex approval chains that are entirely manual and untracked
-• Compliance and audit risks from missing records and inconsistent data
-• Disconnected employee experience with no self-service capability
-
-2.2 Why Existing Solutions Fail
-CategoryProblemEnterprise tools (SAP, Workday)Too complex, expensive, and slow to implement for mid-sized orgsSME tools (basic HR apps)Too basic, non-scalable, and weak on approval workflowsSpreadsheet-based systemsError-prone, no audit trail, no real-time accessFragmented point solutionsPoor integration, data silos, multiple logins for employees
-2.3 Desired Outcome
-A single, unified platform that automates HR operations, supports complex human workflows, scales without a system change, and is simultaneously easy for employees to use daily and powerful enough for HR teams to manage the full employee lifecycle.
-
-
-
-3. Platform Architecture - Three Applications
-PeopleOps HRMS is not a single application. It is composed of three distinct application surfaces, each purpose-built for a specific user group, all sharing a single Node.js/Express TypeScript backend and a PostgreSQL database, but maintaining separate UX, navigation, and access scope.
-
-📱  3.1  Employee Mobile App
-React Native  |  iOS & Android  |  Primary daily-use surface for all employees
-Purpose
-Give every employee a simple, fast, mobile-first interface for their daily HR needs - check-in, check-out, leave requests, payslip downloads, and notifications - without requiring HR involvement.
-
-Key Features
-FeatureDescriptionAttendance Check-In / OutOne-tap check-in and check-out with optional GPS verification for geo-fenced locationsAttendance HistoryView personal attendance log by day, week, and month with status indicatorsCorrection RequestsSubmit attendance correction with reason; track approval status in-appLeave ApplicationApply for leave by type, view remaining balance, and track request statusLeave HistoryFull history of leave requests with approval details and approval chainPayslip ViewerView and download monthly payslips as PDF directly from the appPush NotificationsReal-time alerts for approval decisions, payslip availability, and policy updatesProfile & DocumentsView personal profile, employment details, and uploaded documents (contracts, IDs)Holiday CalendarView company-specific public and custom holidaysProfile Update RequestsSubmit requests to update personal info (HR approves changes)
-Access Scope
-Employees can only view and interact with their own data. There are no administrative or approval capabilities in this app. Managers who also need to approve team requests use the Admin Dashboard on web.
-
-🖥️  3.2  Admin Dashboard (Web)
-Angular + PrimeNG  |  Web Browser  |  Operational hub for HR Admins, Managers, and Company Owners
-Purpose
-Provide HR Admins and Managers with full visibility and control over the company workforce - onboarding employees, managing attendance, processing leave approvals, running payroll, generating reports, and configuring company-level settings.
-
-Key Features by User Role
-HR Admin / Company Owner
-ModuleCapabilitiesCompany SetupConfigure org structure, departments, teams, work locations, shifts, holidays, and working hour policiesEmployee ManagementFull employee lifecycle: create, update, transfer, offboard; manage documents and salary structuresAttendance ManagementView and override attendance logs; process correction requests; configure shift assignmentsLeave AdministrationConfigure leave types and policies; manage balances; approve or reject leave requestsPayroll ProcessingRun payroll cycles, review computed records, apply overrides, finalize, and generate payslipsApproval WorkflowsConfigure multi-step approval chains per module (leave, attendance, etc.) with escalation rulesRoles & PermissionsCreate roles, assign permission sets, manage user access levels across the companyReporting & AnalyticsAttendance, payroll cost, leave trend, and department-level reports with CSV/PDF exportSubscription & BillingView current plan, employee count, invoices, and payment history
-Manager / Team Lead
-ModuleCapabilitiesTeam AttendanceView attendance logs for direct reports; flag anomalies for HRLeave ApprovalsApprove or reject leave requests from team members; view team leave calendarAttendance ApprovalsApprove or reject attendance correction requests from team membersTeam AnalyticsView team-level attendance summaries and leave trends (read-only)
-⚙️  3.3  Super Admin Panel (Web)
-Angular + PrimeNG  |  Internal Platform  |  Operated exclusively by the PeopleOps platform team
-Purpose
-Give the PeopleOps platform team complete visibility and control over all tenant companies, subscription plans, platform health, and system-level configuration. This panel is never accessible to company admins or employees.
-
-Key Features
-FeatureDescriptionCompany ManagementView all registered companies; activate, suspend, or terminate tenants; inspect tenant detailsSubscription & Plan ManagementCreate and edit pricing plans; assign plans to companies; set employee limits per tierBilling & InvoicingView all invoices across tenants; monitor payment status; trigger manual invoice generationUser ImpersonationTemporarily access a tenant's Admin Dashboard for support and debugging (audit-logged)Platform AnalyticsActive company count, MRR, churn, employee count across platform, feature adoption metricsSystem ConfigurationManage global permission codes, default leave policy templates, and platform-wide settingsAudit LogsCross-tenant audit trail for all sensitive platform-level actionsSupport FlagsFlag companies for review, attach internal notes, and manage escalation tickets
-Security Note
-The Super Admin Panel is accessible only via a separate authenticated domain (e.g. admin-internal.peopleops.com) with enforced MFA and IP allowlisting. Super Admin users are completely isolated from company tenants in the database - they have no company_id and cannot access tenant data except through the controlled impersonation flow.
-
-
-4. Tech Stack
-All three application surfaces share a single backend. TypeScript is the primary language across the entire platform - backend, web frontends, and mobile app - ensuring consistent type safety, shared interfaces, and developer interoperability.
-
-LayerTechnologyLanguageNotesMobile AppReact NativeTypeScriptiOS 14+ and Android 9+. Expo or bare workflow. Shared logic via custom hooks and service modules.Admin DashboardAngular 17+ with PrimeNGTypeScriptComponent library: PrimeNG for data tables, forms, dialogs, charts, and calendars. Lazy-loaded modules per feature area.Super Admin PanelAngular 17+ with PrimeNGTypeScriptSeparate Angular project (or Nx monorepo workspace) from Admin Dashboard. Shares PrimeNG component library and common TypeScript interfaces.Backend APINode.js with Express.jsTypeScriptRESTful API. Single application serving all three frontends. Compiled via tsc or tsx for development hot-reload.DatabasePostgreSQLSQLPrimary relational database. Multi-tenant via company_id row-level isolation. Migrations via TypeORM or node-pg-migrate.ORM / Query BuilderTypeORM (recommended)TypeScriptEntity decorators map directly to the schema. Supports migrations, relations, and query builder for complex payroll queries.AuthenticationJWT (access + refresh tokens)-Short-lived access tokens (15 min), long-lived refresh tokens (7 days) stored in HttpOnly cookies. Passport.js for strategy management.File StorageAWS S3 or compatible (e.g. MinIO)-Payslip PDFs, employee documents. Signed URLs for secure access.Push NotificationsFirebase Cloud Messaging (FCM)-For Mobile App alerts (leave approvals, payslip ready, etc.).PDF GenerationPuppeteer or pdfmakeTypeScriptServer-side payslip PDF generation during payroll finalization.Monorepo (optional)Nx WorkspaceTypeScriptRecommended to share types, DTOs, and constants across backend, Admin Dashboard, and Super Admin Panel in a single repo.
-4.1 Recommended Project Structure
-peopleops/                     # Nx monorepo root (or separate repos)
-  apps/
-    mobile/                  # React Native (TypeScript)
-    admin-dashboard/         # Angular + PrimeNG
-    super-admin/             # Angular + PrimeNG
-    api/                     # Node.js Express (TypeScript)
-  libs/
-    shared-types/            # Shared DTOs, enums, interfaces
-    shared-utils/            # Date utils, formatters, validators
-  tools/                     # Build scripts, DB migration runners
-
-Why a shared types library?
-By placing all DTOs (e.g. CreateEmployeeDto, PayrollRecordResponse) in a shared-types lib, both the Angular frontends and the Express backend reference the same TypeScript interfaces. This eliminates an entire class of frontend/backend contract mismatches and makes refactoring safer.
-
-
-5. User Personas
-PersonaPrimary AppGoalsKey Pain Points SolvedEmployeeMobile App (iOS/Android)Mark attendance, apply leave, view payslips and documentsNo more Excel submissions, paper forms, or waiting on HR for payslip PDFsManager / Team LeadAdmin Dashboard (Web)Approve team leave and attendance, monitor team presenceSingle view of team activity instead of chasing emails and messagesHR Admin / Company OwnerAdmin Dashboard (Web)Run payroll, manage employees, configure policies, generate reportsEnd-to-end HR automation replacing scattered tools and manual workSaaS Super AdminSuper Admin Panel (Web)Manage all tenant companies, plans, billing, and platform healthFull operational control over the platform without touching tenant code
-
-
-6. User Journey (High-Level)
-1. Company signs up for the platform (Super Admin activates tenant, assigns plan)
-2. Company Admin completes org setup: departments, teams, locations, shifts, holidays
-3. Employees are added via Admin Dashboard and invited to download the Mobile App
-4. Employees begin marking daily attendance via the Mobile App
-5. Managers handle leave and attendance approvals via the Admin Dashboard
-6. HR Admin runs and finalizes monthly payroll in the Admin Dashboard
-7. Payslips are automatically available to employees in the Mobile App
-8. Company renews subscription; Super Admin monitors billing and platform health
-
-
-
-7. Functional Requirements - Core Modules
-7.1 Company & Organization Management
-Purpose
-Enable multi-tenant SaaS with fully isolated company data and flexible org configuration.
-Features
-• Company onboarding and profile management
-• Department and team hierarchy
-• Work locations with optional GPS/geo-fence rules
-• Shift definitions (start/end times, grace periods)
-• Holiday calendars (custom per company)
-• Working hours policies
-Available In
-Admin Dashboard (HR Admin)  |  Super Admin Panel (tenant provisioning)
-
-7.2 Employee Management
-Purpose
-Centralized employee lifecycle management from onboarding to offboarding.
-Features
-• Employee profiles (personal, employment, and contact details)
-• Department, team, and manager assignment
-• Salary structure management with versioned effective dates
-• Document storage (contracts, ID proof, certificates)
-• Onboarding and offboarding workflows
-• Role and user account assignment
-Available In
-Admin Dashboard (HR Admin, limited view for Managers)  |  Mobile App (read-only for Employee)
-
-7.3 Attendance & Time Tracking
-Purpose
-Accurate, automated tracking of employee presence and working time.
-Features
-• Mobile check-in and check-out (one tap) via Employee App
-• Shift-based attendance with grace period enforcement
-• GPS/location verification for geo-fenced work locations
-• Automatic total hours and overtime calculation
-• Attendance status classification (present, absent, late, half-day)
-• Attendance correction request and approval workflow
-• Admin manual override capability
-Available In
-Mobile App (Employee - check-in/out, history, correction requests)  |  Admin Dashboard (Managers and HR Admin - approvals, overrides, reports)
-
-7.4 Leave Management
-Purpose
-Automate leave policies, balance tracking, and multi-level approvals.
-Features
-• Configurable leave types (paid, unpaid, sick, casual, and custom)
-• Leave balance tracking with automatic accrual
-• Leave request submission by employee
-• Multi-level approval workflows (configurable per company)
-• Automatic balance deduction on approval
-• Leave deduction integration with payroll for unpaid leave
-• Holiday calendar integration to calculate working days only
-Available In
-Mobile App (Employee - apply, track, view balance)  |  Admin Dashboard (Managers - approve/reject; HR Admin - configure, report)
-
-7.5 Payroll Management
-Purpose
-Automated, accurate, audit-ready payroll processing.
-Features
-• Salary components (fixed basic, gross, and configurable allowances)
-• Attendance-based salary computation
-• Overtime additions and unpaid leave deductions
-• Tax and statutory compliance rule support
-• Payroll preview before locking
-• Cycle locking to prevent post-finalization edits
-• Payslip generation as PDF
-• Full payroll history per employee
-Available In
-Admin Dashboard (HR Admin only)  |  Mobile App (Employee - payslip download only)
-
-Important
-The platform generates payroll outputs only. It does not initiate or process bank transfers. Payment execution remains the responsibility of the company.
-7.6 Employee Self-Service (ESS)
-Purpose
-Empower employees to manage their own HR needs without depending on HR staff.
-Features
-• View personal attendance log and monthly summary
-• Apply for leave and track request status
-• Download monthly payslips as PDF
-• View employment documents
-• Submit profile update requests (HR approves changes)
-• View holiday calendar and company announcements
-Available In
-Mobile App (primary ESS surface)  |  Admin Dashboard (secondary web access for employees who prefer browser)
-
-7.7 Reporting & Analytics
-Purpose
-Enable data-driven HR decisions and compliance reporting.
-Features
-• Attendance reports (daily, weekly, monthly; by employee or department)
-• Payroll cost reports (total, department-wise, per employee)
-• Leave trend analysis (utilization by type and team)
-• Department-level workforce analytics
-• Export to CSV and PDF
-Available In
-Admin Dashboard (HR Admin - full access; Managers - team-scoped read-only)  |  Super Admin Panel (platform-wide aggregate metrics)
-
-
-
-8. Advanced & Scalable Modules (Phase 2)
-ModuleDescriptionTarget AppPerformance & Goal ManagementOKR/KPI goal setting, review cycles, manager feedback, and self-reviewsAdmin Dashboard + Mobile AppCustom Workflow & Approval EngineVisual builder for approval chains, escalation rules, and SLA timersAdmin DashboardAccounting IntegrationExport payroll data to Tally, QuickBooks, Zoho BooksAdmin DashboardBiometric Device IntegrationImport attendance from physical biometric terminalsAdmin Dashboard (backend)Bank Export FilesGenerate bank-format salary disbursement filesAdmin DashboardEmail & SMS NotificationsTransactional alerts for approvals, payslip availability, policy updatesAll surfacesDeveloper API AccessREST API with API keys for custom integrationsSuper Admin PanelAI-Powered InsightsAttrition risk scoring, attendance anomaly detection, cost forecastingAdmin Dashboard + Super AdminNative Mobile Offline ModeCache attendance and leave data for areas with poor connectivityMobile App
-
-
-9. Roles & Permissions (RBAC)
-Access control is enforced at three levels: platform-level (Super Admin), company-level (roles within a tenant), and data-level (employees only see their own records).
-
-RoleScopeAccess LevelSuper AdminPlatform-wide (all tenants)Full control of all tenants, plans, billing, and platform config via Super Admin Panel onlyCompany Admin / HR HeadSingle company tenantFull access to all HR modules, employee data, payroll, and company settings in Admin DashboardManager / Team LeadOwn team and direct reportsTeam attendance and leave approvals, read-only team analytics in Admin DashboardEmployeeOwn data onlySelf-service features in Mobile App: own attendance, own leave, own payslips, own documents
-• Permissions are code-based (e.g. attendance:approve, payroll:run) and assigned to roles via the Admin Dashboard
-• All roles and permissions are company-scoped - a user's role in Company A has zero access to Company B
-• Super Admin access is completely isolated from tenant data and requires MFA
-• All sensitive actions (payroll finalization, role changes, data deletion) are written to immutable audit logs
-
-
-
-10. Billing & Subscription (SaaS Model)
-10.1 Pricing Model
-• Per employee / per month pricing
-• Tier-based plans with feature gating (e.g. Basic, Growth, Enterprise)
-• Employee count enforcement - payroll cannot be run if active employees exceed plan limit
-
-10.2 Features
-FeatureDescriptionManaged InSubscription PlansCreate and configure plans with pricing, employee limits, and feature setsSuper Admin PanelPlan AssignmentAssign a plan to a company at signup or on upgradeSuper Admin PanelInvoicesAuto-generated monthly invoices per company based on active employee countSuper Admin Panel + Admin Dashboard (view only)Payment HistoryFull record of payments with gateway and transaction referenceSuper Admin Panel + Admin Dashboard (view only)Auto-RenewalSubscriptions renew automatically; failure triggers grace periodSuper Admin PanelGrace Period HandlingCompanies retain access for a configurable period after payment failure before suspensionSuper Admin Panel
-
-
-11. Non-Functional Requirements
-CategoryRequirementSecurityData isolation per company tenant; AES-256 encryption for sensitive fields; JWT authentication with short-lived access tokens; MFA for Super Admin and Company AdminPerformanceAttendance check-in response < 500ms; payroll cycle computation for 1,000 employees < 60 seconds; dashboard page load < 2 seconds on standard connectionScalabilityStateless API services for horizontal scaling; multi-tenant architecture with shared schema and company_id row-level isolation; supports 1,000+ employees per tenantAvailability99.9% uptime SLA; automated daily database backups; disaster recovery with < 4 hour RTOMobileReact Native (TypeScript) targeting iOS 14+ and Android 9+; offline-tolerant attendance (queue and sync on reconnect)ComplianceAudit logs for all mutating actions; GDPR-ready data deletion on company offboarding; region-specific data residency support in Phase 2
-
-
-12. MVP Scope
-DeliverableStatusNotesCompany setup and org structureIn ScopeDepartments, teams, locations, shifts, holidaysEmployee management and documentsIn ScopeProfiles, salary structures, documentsAttendance tracking (Mobile App)In ScopeCheck-in/out, correction requests, approvalsLeave managementIn ScopeTypes, balances, requests, approvalsPayroll processing and payslipsIn ScopeComputation, finalization, PDF payslipsEmployee Self-Service (Mobile App)In ScopeAttendance, leave, payslips, profileAdmin Dashboard (Web)In ScopeAll HR admin and manager featuresSuper Admin Panel (Web)In ScopeTenant management, plans, billingSubscription billingIn ScopePlans, invoices, payment recordsPerformance managementPhase 2OKRs, review cycles, feedbackAI-powered insightsPhase 2Attrition risk, anomaly detectionThird-party integrationsPhase 2Accounting, biometrics, bank exportNative offline modePhase 2Mobile App offline attendance queuing
-
-
-13. Success Metrics
-MetricTarget (Year 1)MeasurementActive Companies50+ paying tenantsSuper Admin dashboardMonthly Recurring Revenue (MRR)Growth month-on-monthBilling modulePayroll Accuracy Rate> 99.5%Support tickets and correction requestsAttendance Adoption Rate> 90% of employees using Mobile App within 60 daysApp analyticsCustomer Retention (Annual)> 85%Subscription renewal trackingPayslip Download Rate> 80% of employees downloading monthlyApp analyticsAverage Approval Turnaround< 24 hours for leave and attendance correctionsApproval logs
-
-
-14. Assumptions & Constraints
-14.1 Assumptions
-• The client company is responsible for all employee salary disbursements - the platform produces payroll outputs only
-• Internet connectivity is available for all users (offline mode is Phase 2)
-• Legal and statutory compliance configuration (tax rules, provident fund, etc.) is initially handled manually by HR Admin; automated compliance is Phase 2
-• Initial launch targets web (desktop browsers) for Admin Dashboard and Super Admin Panel (Angular + PrimeNG), and React Native (TypeScript) for the Mobile App (iOS and Android)
-• SMS/email notifications are Phase 2; in-app push notifications are MVP
-
-14.2 Constraints
-• MVP does not include real-time biometric device integration
-• No direct bank payment processing - the platform is not a payment service
-• AI-powered analytics are explicitly out of MVP scope
-• Mobile App will not support tablet or desktop form factors in MVP
-
-14.3 Final Notes
-This PRD is designed to be developer-ready, providing enough context for backend, frontend, and mobile engineers to begin architecture and sprint planning. It is intended to scale the platform from 100 to 1,000+ employees per company and grow into a full enterprise HRMS SaaS over multiple release phases.
-
-PeopleOps HRMS  |  Product Requirements Document  |  Page  of 
-
